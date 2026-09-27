@@ -19,11 +19,11 @@ CREATE TABLE IF NOT EXISTS respuestas_fijas (
 
 -- Mascota inicial (id = 1, que es la que leen los endpoints)
 INSERT INTO estado_mascota (id, nombre, hambre, sueno, dopamina)
-VALUES (1, 'Tama', 100, 100, 100)
+VALUES (1, 'Roberto', 100, 100, 100)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO respuestas_fijas (pregunta_clave, respuesta) VALUES
-    ('nombre',        'Me llamo Tama y soy un Tamagotchi.'),
+    ('nombre',        'Me llamo Roberto y soy un Tamagotchi.'),
     ('juego_favorito','Mi juego favorito es jugar conmigo mismo.'),
     ('comida_favorita','Me encanta que me alimentes.'),
     ('edad',          'Tengo todos los dias contigo.')
