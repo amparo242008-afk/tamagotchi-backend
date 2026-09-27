@@ -1,0 +1,21 @@
+{
+  "name": "tamagotchi",
+  "version": "1.0.0",
+  "description": "API del Tamagotchi - Node.js + Express + PostgreSQL",
+  "main": "Server.js",
+  "scripts": {
+    "start": "node Server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "pg": "^8.23.0"
+  }
+}

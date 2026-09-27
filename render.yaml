@@ -1,0 +1,18 @@
+# Blueprint de Render. Esto se lee solo si creás el servicio
+# con la opción "Blueprint" en render.com (o New > Blueprint).
+services:
+  - type: web
+    name: tamagotchi-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Render te lo pide completar en el primer deploy.
+      # Pegá ahí la URL de tu base de datos.
+      - key: DATABASE_URL
+        sync: false
