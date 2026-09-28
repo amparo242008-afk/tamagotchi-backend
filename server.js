@@ -132,16 +132,21 @@ app.post('/accion', async (req, res) => {
         }
         const estadoActual = calcularEstadoActual(result.rows[0]);
 
-        const nuevoValor = Math.min(100, estadoActual[accion.columna] + accion.suma);
+const nuevoEstado = {
+    hambre: estadoActual.hambre,
+    sueno: estadoActual.sueno,
+    dopamina: estadoActual.dopamina,
+};
+nuevoEstado[accion.columna] = Math.min(100, nuevoEstado[accion.columna] + accion.suma);
 
-        await pool.query(
-            `UPDATE estado_mascota
-             SET ${accion.columna} = $1, ultima_actualizacion = NOW()
-             WHERE id = 1`,
-            [nuevoValor]
-        );
+await pool.query(
+    `UPDATE estado_mascota
+     SET hambre = $1, sueno = $2, dopamina = $3, ultima_actualizacion = NOW()
+     WHERE id = 1`,
+    [nuevoEstado.hambre, nuevoEstado.sueno, nuevoEstado.dopamina]
+);
 
-        res.json({ mensaje: `${tipo} aplicado`, [accion.columna]: nuevoValor });
+res.json({ mensaje: `${tipo} aplicado`, ...nuevoEstado });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error al aplicar la acción' });
