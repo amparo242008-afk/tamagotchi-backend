@@ -5,3 +5,7 @@ npm-debug.log*
 yarn-error.log*
 .DS_Store
 *.log
+
+# Notas personales del proyecto (no subir)
+Tamagotchi-Wokwi/contexto.md
+__pycache__/
