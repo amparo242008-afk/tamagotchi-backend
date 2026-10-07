@@ -42,6 +42,10 @@ const DECAIMIENTO_POR_MINUTO = {
     dopamina: 1.5,
 };
 
+// Mientras Roberto duerme, el sueño SUBE (en vez de bajar) a este ritmo.
+// Con 10 puntos por minuto, de 0 a 100 tarda 10 minutos.
+const RECUPERACION_SUENO_POR_MINUTO = 10;
+
 // ---------------------------------------------
 // 3. LA FUNCIÓN CLAVE: calcular el estado actual
 // ---------------------------------------------
@@ -56,7 +60,10 @@ function calcularEstadoActual(registro) {
     // Restamos el decaimiento correspondiente a cada stat,
     // sin dejar que baje de 0
     const hambre = Math.max(0, registro.hambre - minutosPasados * DECAIMIENTO_POR_MINUTO.hambre);
-    const sueno = Math.max(0, registro.sueno - minutosPasados * DECAIMIENTO_POR_MINUTO.sueno);
+    // Si está durmiendo, el sueño se recupera (hasta 100) en vez de bajar
+    const sueno = registro.durmiendo
+        ? Math.min(100, Number(registro.sueno) + minutosPasados * RECUPERACION_SUENO_POR_MINUTO)
+        : Math.max(0, registro.sueno - minutosPasados * DECAIMIENTO_POR_MINUTO.sueno);
     const dopamina = Math.max(0, registro.dopamina - minutosPasados * DECAIMIENTO_POR_MINUTO.dopamina);
 
     return {
@@ -64,6 +71,7 @@ function calcularEstadoActual(registro) {
         hambre: Math.round(hambre),
         sueno: Math.round(sueno),
         dopamina: Math.round(dopamina),
+        durmiendo: Boolean(registro.durmiendo),
     };
 }
 
@@ -106,8 +114,10 @@ app.get('/estado', async (req, res) => {
 // ---------------------------------------------
 // 5. ENDPOINT: POST /accion
 // ---------------------------------------------
-// Body esperado: { "tipo": "alimentar" | "jugar" | "dormir" }
-// Sube el stat correspondiente y actualiza la marca de tiempo
+// Body esperado: { "tipo": "alimentar" | "jugar" | "dormir" | "despertar" }
+// - alimentar / jugar: suben su stat de una.
+// - dormir: Roberto se acuesta; el sueño va subiendo con el tiempo (ver calcularEstadoActual).
+// - despertar: Roberto se levanta; el sueño vuelve a bajar normal.
 app.post('/accion', async (req, res) => {
     const { tipo } = req.body;
 
@@ -115,7 +125,8 @@ app.post('/accion', async (req, res) => {
     const acciones = {
         alimentar: { columna: 'hambre', suma: 30 },
         jugar: { columna: 'dopamina', suma: 30 },
-        dormir: { columna: 'sueno', suma: 40 },
+        dormir: { durmiendo: true },
+        despertar: { durmiendo: false },
     };
 
     const accion = acciones[tipo];
@@ -132,21 +143,36 @@ app.post('/accion', async (req, res) => {
         }
         const estadoActual = calcularEstadoActual(result.rows[0]);
 
-const nuevoEstado = {
-    hambre: estadoActual.hambre,
-    sueno: estadoActual.sueno,
-    dopamina: estadoActual.dopamina,
-};
-nuevoEstado[accion.columna] = Math.min(100, nuevoEstado[accion.columna] + accion.suma);
+        // No se puede dormir si no tiene sueño
+        if (tipo === 'dormir' && estadoActual.sueno >= 100) {
+            return res.status(409).json({ error: 'No tiene sueño', ...estadoActual });
+        }
 
-await pool.query(
-    `UPDATE estado_mascota
-     SET hambre = $1, sueno = $2, dopamina = $3, ultima_actualizacion = NOW()
-     WHERE id = 1`,
-    [nuevoEstado.hambre, nuevoEstado.sueno, nuevoEstado.dopamina]
-);
+        const nuevoEstado = {
+            hambre: estadoActual.hambre,
+            sueno: estadoActual.sueno,
+            dopamina: estadoActual.dopamina,
+            durmiendo: estadoActual.durmiendo,
+        };
+        if (accion.columna) {
+            nuevoEstado[accion.columna] = Math.min(100, nuevoEstado[accion.columna] + accion.suma);
+        }
+        if (accion.durmiendo !== undefined) {
+            nuevoEstado.durmiendo = accion.durmiendo;
+        }
 
-res.json({ mensaje: `${tipo} aplicado`, ...nuevoEstado });
+        // Se guardan los TRES stats ya recalculados (si no, los otros "reviven")
+        await pool.query(
+            `UPDATE estado_mascota
+             SET hambre = $1, sueno = $2, dopamina = $3, durmiendo = $4, ultima_actualizacion = NOW()
+             WHERE id = 1`,
+            [nuevoEstado.hambre, nuevoEstado.sueno, nuevoEstado.dopamina, nuevoEstado.durmiendo]
+        );
+
+        // Historial para el futuro panel web del acompañante
+        await pool.query('INSERT INTO historial_acciones (tipo) VALUES ($1)', [tipo]);
+
+        res.json({ mensaje: `${tipo} aplicado`, ...nuevoEstado });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error al aplicar la acción' });
@@ -177,6 +203,25 @@ app.get('/respuesta/:clave', async (req, res) => {
 // ---------------------------------------------
 // 7. LEVANTAR EL SERVER
 // ---------------------------------------------
-app.listen(PORT, () => {
-    console.log(`Servidor del Tamagotchi corriendo en http://localhost:${PORT}`);
-});
+// Antes de arrancar, agrega a la base lo que haga falta (si ya existe, no hace nada).
+// Así no hay que correr SQL a mano en Render cada vez que se suma algo.
+async function prepararBase() {
+    await pool.query(
+        'ALTER TABLE estado_mascota ADD COLUMN IF NOT EXISTS durmiendo BOOLEAN NOT NULL DEFAULT false'
+    );
+    await pool.query(
+        `CREATE TABLE IF NOT EXISTS historial_acciones (
+            id    SERIAL PRIMARY KEY,
+            tipo  TEXT        NOT NULL,
+            fecha TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`
+    );
+}
+
+prepararBase()
+    .catch((err) => console.error('No se pudo preparar la base:', err))
+    .finally(() => {
+        app.listen(PORT, () => {
+            console.log(`Servidor del Tamagotchi corriendo en http://localhost:${PORT}`);
+        });
+    });

@@ -9,7 +9,16 @@ CREATE TABLE IF NOT EXISTS estado_mascota (
     hambre               NUMERIC(5,2) NOT NULL DEFAULT 100,
     sueno                NUMERIC(5,2) NOT NULL DEFAULT 100,
     dopamina             NUMERIC(5,2) NOT NULL DEFAULT 100,
+    durmiendo            BOOLEAN      NOT NULL DEFAULT false,
     ultima_actualizacion TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- Cada accion que se hace (alimentar, jugar, dormir, despertar), con fecha.
+-- Es la base del panel web para el acompañante.
+CREATE TABLE IF NOT EXISTS historial_acciones (
+    id    SERIAL PRIMARY KEY,
+    tipo  TEXT        NOT NULL,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS respuestas_fijas (
