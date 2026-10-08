@@ -35,16 +35,18 @@ const pool = new Pool(
 // ---------------------------------------------
 // 2. CONFIGURACIÓN DE DECAIMIENTO
 // ---------------------------------------------
+// MODO_DEMO = true: todo pasa rápido, para mostrar en la defensa o para probar.
+// MODO_DEMO = false: ritmo tranquilo de uso diario, así Roberto no está siempre triste.
+const MODO_DEMO = false;
+
 // Cuántos puntos baja cada stat por minuto que pasa
-const DECAIMIENTO_POR_MINUTO = {
-    hambre: 1,
-    sueno: 0.5,
-    dopamina: 1.5,
-};
+const DECAIMIENTO_POR_MINUTO = MODO_DEMO
+    ? { hambre: 1, sueno: 0.5, dopamina: 1.5 }       // hambre de 100 a 0 en ~1,5 h
+    : { hambre: 0.2, sueno: 0.1, dopamina: 0.2 };    // hambre de 100 a 0 en ~8 h, sueño en ~16 h
 
 // Mientras Roberto duerme, el sueño SUBE (en vez de bajar) a este ritmo.
-// Con 10 puntos por minuto, de 0 a 100 tarda 10 minutos.
-const RECUPERACION_SUENO_POR_MINUTO = 10;
+// Demo: de 0 a 100 en 10 minutos. Real: en unas 6 horas (una noche).
+const RECUPERACION_SUENO_POR_MINUTO = MODO_DEMO ? 10 : 0.3;
 
 // Minijuego "Atrapar": dopamina = base por jugar + puntos por corazón, con un tope por partida
 const JUGAR_BASE = 5;
@@ -227,6 +229,90 @@ app.get('/preguntas', async (req, res) => {
 });
 
 // ---------------------------------------------
+// 6c. AGENDA DE ROBERTO: GET /rutina y POST /registro
+// ---------------------------------------------
+// Los rangos horarios se escriben en rutina.json. Roberto pregunta en cada rango
+// ("¿ya comiste?") y la persona contesta con un botón. Eso queda en historial_acciones
+// para el panel del acompañante. La persona nunca ve lo que no hizo.
+
+// Argentina es UTC-3 todo el año (no hay horario de verano)
+const OFFSET_ARGENTINA_MS = -3 * 60 * 60 * 1000;
+
+function aMinutos(hhmm) {
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+}
+
+// Cuándo empezó (en hora real) la vez más reciente de este rango.
+// Ej: a las 00:30, el rango "dormir" 21:00–01:00 empezó AYER a las 21:00.
+function inicioUltimoRango(rango) {
+    const ahoraAr = new Date(Date.now() + OFFSET_ARGENTINA_MS);
+    const minutosAhora = ahoraAr.getUTCHours() * 60 + ahoraAr.getUTCMinutes();
+    const desde = aMinutos(rango.desde);
+    const inicioAr = new Date(ahoraAr);
+    inicioAr.setUTCHours(Math.floor(desde / 60), desde % 60, 0, 0);
+    if (minutosAhora < desde) inicioAr.setUTCDate(inicioAr.getUTCDate() - 1);
+    return new Date(inicioAr.getTime() - OFFSET_ARGENTINA_MS);
+}
+
+function leerRutina() {
+    delete require.cache[require.resolve('./rutina.json')];
+    return require('./rutina.json');
+}
+
+app.get('/rutina', async (req, res) => {
+    try {
+        const rutina = leerRutina();
+        const rangos = [];
+        for (const r of rutina.rangos) {
+            // ¿ya se contestó "sí" en esta vuelta del rango? (así un reinicio no repregunta)
+            const result = await pool.query(
+                `SELECT 1 FROM historial_acciones
+                 WHERE clave = $1 AND tipo LIKE 'confirmo_%' AND fecha >= $2 LIMIT 1`,
+                [r.clave, inicioUltimoRango(r)]
+            );
+            rangos.push({ ...r, confirmado: result.rows.length > 0 });
+        }
+        res.json({
+            reinsistir_min: rutina.reinsistir_min,
+            max_avisos: rutina.max_avisos,
+            silencio: rutina.silencio,
+            rangos,
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error al leer la rutina' });
+    }
+});
+
+// Body: { "clave": "almuerzo", "respuesta": "si" | "mas_tarde" | "sin_respuesta" }
+app.post('/registro', async (req, res) => {
+    const { clave, respuesta } = req.body;
+    const prefijos = { si: 'confirmo', mas_tarde: 'posterga', sin_respuesta: 'sin_respuesta' };
+    const rango = leerRutina().rangos.find((r) => r.clave === clave);
+    if (!rango || !prefijos[respuesta]) {
+        return res.status(400).json({ error: 'Registro inválido' });
+    }
+    const tipo = `${prefijos[respuesta]}_${rango.actividad}`;
+    try {
+        // "sin respuesta" se anota una sola vez por rango (por si la placa se reinicia)
+        if (respuesta === 'sin_respuesta') {
+            const ya = await pool.query(
+                `SELECT 1 FROM historial_acciones
+                 WHERE clave = $1 AND (tipo LIKE 'confirmo_%' OR tipo LIKE 'sin_respuesta_%') AND fecha >= $2 LIMIT 1`,
+                [clave, inicioUltimoRango(rango)]
+            );
+            if (ya.rows.length > 0) return res.json({ mensaje: 'ya registrado' });
+        }
+        await pool.query('INSERT INTO historial_acciones (tipo, clave) VALUES ($1, $2)', [tipo, clave]);
+        res.json({ mensaje: 'registrado', tipo });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error al registrar' });
+    }
+});
+
+// ---------------------------------------------
 // 7. LEVANTAR EL SERVER
 // ---------------------------------------------
 // Antes de arrancar, agrega a la base lo que haga falta (si ya existe, no hace nada).
@@ -242,6 +328,8 @@ async function prepararBase() {
             fecha TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`
     );
+    // clave: de que rango de la rutina es el registro (ej. "almuerzo"); vacío en las acciones del juguete
+    await pool.query('ALTER TABLE historial_acciones ADD COLUMN IF NOT EXISTS clave TEXT');
     await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS pregunta TEXT');
     await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS orden INTEGER NOT NULL DEFAULT 0');
     await cargarPreguntas();

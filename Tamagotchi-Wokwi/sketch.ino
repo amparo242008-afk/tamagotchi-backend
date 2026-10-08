@@ -64,16 +64,47 @@ volatile int hambreActual = 100;
 volatile int suenoActual = 100;
 volatile int dopaminaActual = 100;
 volatile bool statsNuevos = false;
-volatile int puntosParaEnviar = 0;            // corazones del minijuego, viajan con "jugar"
 volatile bool durmiendoServidor = false;      // el servidor dice que Roberto esta dormido
 volatile bool primeraConsulta = true;         // para retomar el sueno si se reinicio la placa
 volatile uint32_t intervaloConsultaMs = 60000;  // cada cuanto se piden los stats (mas seguido al dormir)
 
 // Cola de acciones para mandar al servidor sin trabar la pantalla
 QueueHandle_t colaAcciones;
+// Lo que viaja por la cola: una accion del juguete ("alimentar", "jugar"...) o un
+// registro de la agenda ("registro"). dato = puntos del juego, o numero de rango.
+struct Pedido { const char* tipo; int dato; const char* respuesta; };
+
+// ---------- Agenda de Roberto (rutina.json en el servidor) ----------
+// En cada rango horario Roberto pregunta "�ya comiste?" (o te banaste, o a dormir).
+// "Si" = la persona confirma, y Roberto lo hace con ella. "Mas tarde" = vuelve a
+// preguntar despues. Lo que no se contesta se anota en silencio para el acompanante.
+#define MAX_RANGOS 8
+enum Actividad { ACT_COMIDA, ACT_HIGIENE, ACT_DORMIR };
+struct Rango {
+    char clave[16];
+    Actividad actividad;
+    int desde, hasta;            // minutos del dia (ej. 8:30 = 510); hasta < desde = cruza la medianoche
+    bool confirmado;             // ya dijo "si" en esta vuelta del rango
+    int avisos;                  // cuantas veces pregunto en esta vuelta
+    unsigned long ultimoAvisoMs;
+    bool cerrado;                // ya se anoto "sin respuesta"
+    long vuelta;                 // identifica la vuelta (el dia) del rango, para arrancar de cero
+};
+Rango rangos[MAX_RANGOS];
+int nRangos = 0;
+int reinsistirMin = 45;
+int maxAvisos = 3;
+int silencioDesde = 22 * 60;     // de noche Roberto no hace ruido
+int silencioHasta = 8 * 60;
+volatile bool rutinaLista = false;
+unsigned long ultimoAvisoGlobal = 0;  // para no encadenar dos preguntas seguidas
+unsigned long ultimaRevisionAgenda = 0;
+int rangoAviso = 0;              // de que rango es la pregunta en pantalla
+int cursorAviso = 0;             // 0 = Si, 1 = Mas tarde
+unsigned long avisoInicio = 0;
 
 // ---------- Pantallas ----------
-enum Pantalla { P_PRINCIPAL, P_MENU, P_COMIDA, P_COCINA, P_DORMIR, P_INFO, P_INFO_RESPUESTA, P_JUGAR, P_JUGAR_FIN };
+enum Pantalla { P_PRINCIPAL, P_MENU, P_COMIDA, P_COCINA, P_DORMIR, P_INFO, P_INFO_RESPUESTA, P_JUGAR, P_JUGAR_FIN, P_AVISO };
 Pantalla pantallaActual = P_PRINCIPAL;
 
 int cursorMenu = 0;
@@ -142,12 +173,33 @@ const Nota SONIDO_DORMIR[]   = {{SOL5, 160}, {MI5, 160}, {DO5, 300}, {0, 0}};
 const Nota SONIDO_HABLAR[]   = {{LA5, 30}, {0, 0}};
 const Nota SONIDO_CORAZON[]  = {{1319, 40}, {1760, 60}, {0, 0}};
 const Nota SONIDO_BOMBA[]    = {{220, 120}, {0, 0}};
+const Nota SONIDO_AVISO[]    = {{MI5, 100}, {0, 60}, {SOL5, 100}, {0, 60}, {DO6, 180}, {0, 0}};
 const Nota SONIDO_NO[]       = {{MI5, 80}, {0, 40}, {DO5, 120}, {0, 0}};
+
+// ---------- Reloj (hora real por internet, NTP) ----------
+bool horaLista() { return time(nullptr) > 1700000000; }  // antes de sincronizar, el reloj arranca en 1970
+
+int minutoDelDia() {
+    time_t t = time(nullptr);
+    struct tm hora;
+    localtime_r(&t, &hora);
+    return hora.tm_hour * 60 + hora.tm_min;
+}
+
+// �El minuto m esta dentro del rango? (puede cruzar la medianoche, ej. 21:00 a 01:00)
+bool enRango(int desde, int hasta, int m) {
+    if (desde < hasta) return m >= desde && m < hasta;
+    return m >= desde || m < hasta;
+}
+
+bool enSilencio() { return horaLista() && enRango(silencioDesde, silencioHasta, minutoDelDia()); }
 
 // tone() del ESP32 tiene su propia cola: las notas se mandan todas juntas y suenan
 // una detras de otra solas, sin trabar la pantalla ni los botones.
+// De noche (horario de silencio de rutina.json) solo suena el clic de los botones.
 void sonar(const Nota* melodia) {
     if (!SONIDO_ACTIVADO) return;
+    if (melodia != SONIDO_BOTON && enSilencio()) return;
     for (int i = 0; melodia[i].ms > 0; i++) tone(PIN_BUZZER, melodia[i].freq, melodia[i].ms);
 }
 
@@ -301,13 +353,13 @@ void consultarEstado() {
     http.end();
 }
 
-void enviarAccionAhora(const char* tipo) {
+void enviarAccionAhora(const char* tipo, int puntos) {
     if (WiFi.status() != WL_CONNECTED) return;
     HTTPClient http;
     http.begin(String(urlBase) + "/accion");
     http.addHeader("Content-Type", "application/json");
     String cuerpo = String("{\"tipo\":\"") + tipo + "\"";
-    if (strcmp(tipo, "jugar") == 0) cuerpo += ",\"puntos\":" + String(puntosParaEnviar);
+    if (strcmp(tipo, "jugar") == 0) cuerpo += ",\"puntos\":" + String(puntos);
     http.POST(cuerpo + "}");
     http.end();
     consultarEstado();
@@ -316,8 +368,9 @@ void enviarAccionAhora(const char* tipo) {
 // Desde las pantallas se usa ESTA: deja la accion en la cola y vuelve al instante.
 // El servidor de Render (plan gratis) puede tardar hasta ~50 s en despertarse,
 // y antes eso congelaba la pantalla hasta que respondia.
-void enviarAccion(const char* tipo) {
-    xQueueSend(colaAcciones, &tipo, 0);
+void enviarAccion(const char* tipo, int puntos = 0) {
+    Pedido p = {tipo, puntos, nullptr};
+    xQueueSend(colaAcciones, &p, 0);
 }
 
 // Tarea de red: corre sola en el nucleo 0, mientras el loop (nucleo 1) dibuja y lee botones.
@@ -352,18 +405,89 @@ void descargarPreguntas() {
     http.end();
 }
 
+// "08:30" -> 510 minutos
+int aMinutos(const char* hhmm) {
+    return atoi(hhmm) * 60 + atoi(hhmm + 3);
+}
+
+// Identifica la vuelta mas reciente del rango (cuando empezo, en minutos desde 1970).
+// Cuando cambia, empezo un rango nuevo: Roberto arranca de cero.
+long vueltaDeRango(const Rango& r) {
+    long ahora = time(nullptr) / 60;
+    return ahora - ((minutoDelDia() - r.desde + 1440) % 1440);
+}
+
+// Baja la agenda (GET /rutina). Necesita la hora real para saber en que vuelta esta cada rango.
+void descargarRutina() {
+    if (rutinaLista || WiFi.status() != WL_CONNECTED || !horaLista()) return;
+    HTTPClient http;
+    http.begin(String(urlBase) + "/rutina");
+    if (http.GET() == 200) {
+        JsonDocument doc;
+        if (!deserializeJson(doc, http.getString())) {
+            reinsistirMin = doc["reinsistir_min"] | 45;
+            maxAvisos = doc["max_avisos"] | 3;
+            silencioDesde = aMinutos(doc["silencio"]["desde"] | "22:00");
+            silencioHasta = aMinutos(doc["silencio"]["hasta"] | "08:00");
+            int n = 0;
+            for (JsonObject r : doc["rangos"].as<JsonArray>()) {
+                if (n >= MAX_RANGOS) break;
+                Rango& rango = rangos[n];
+                strlcpy(rango.clave, r["clave"] | "", sizeof(rango.clave));
+                const char* act = r["actividad"] | "comida";
+                rango.actividad = strcmp(act, "dormir") == 0 ? ACT_DORMIR
+                                : strcmp(act, "higiene") == 0 ? ACT_HIGIENE : ACT_COMIDA;
+                rango.desde = aMinutos(r["desde"] | "00:00");
+                rango.hasta = aMinutos(r["hasta"] | "00:00");
+                rango.confirmado = r["confirmado"] | false;  // si ya dijo "si" antes de reiniciar
+                rango.avisos = 0;
+                rango.ultimoAvisoMs = 0;
+                rango.cerrado = false;
+                rango.vuelta = vueltaDeRango(rango);
+                n++;
+            }
+            nRangos = n;
+            rutinaLista = true;  // recien ahora el loop la empieza a usar
+            Serial.printf("Agenda: %d rangos\n", n);
+        }
+    }
+    http.end();
+}
+
+void enviarRegistroAhora(int rango, const char* respuesta) {
+    if (WiFi.status() != WL_CONNECTED) return;
+    HTTPClient http;
+    http.begin(String(urlBase) + "/registro");
+    http.addHeader("Content-Type", "application/json");
+    http.POST(String("{\"clave\":\"") + rangos[rango].clave + "\",\"respuesta\":\"" + respuesta + "\"}");
+    http.end();
+}
+
+// Desde las pantallas: anota la respuesta de la persona (si / mas_tarde / sin_respuesta)
+void enviarRegistro(int rango, const char* respuesta) {
+    Pedido p = {"registro", rango, respuesta};
+    xQueueSend(colaAcciones, &p, 0);
+}
+
 void tareaRed(void*) {
     unsigned long inicioWiFi = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - inicioWiFi < 10000) vTaskDelay(pdMS_TO_TICKS(100));
+    // Hora de Argentina (UTC-3) desde internet
+    configTime(-3 * 3600, 0, "pool.ntp.org", "time.google.com");
+    for (int i = 0; i < 50 && !horaLista(); i++) vTaskDelay(pdMS_TO_TICKS(100));
+    if (horaLista()) Serial.printf("Hora: %02d:%02d\n", minutoDelDia() / 60, minutoDelDia() % 60);
     consultarEstado();
     descargarPreguntas();
+    descargarRutina();
     for (;;) {
-        const char* tipo;
-        if (xQueueReceive(colaAcciones, &tipo, pdMS_TO_TICKS(intervaloConsultaMs)) == pdTRUE) {
-            enviarAccionAhora(tipo);
+        Pedido p;
+        if (xQueueReceive(colaAcciones, &p, pdMS_TO_TICKS(intervaloConsultaMs)) == pdTRUE) {
+            if (strcmp(p.tipo, "registro") == 0) enviarRegistroAhora(p.dato, p.respuesta);
+            else enviarAccionAhora(p.tipo, p.dato);
         } else {
             consultarEstado();
             descargarPreguntas();  // por si la primera vez no hubo internet
+            descargarRutina();
         }
     }
 }
@@ -1041,6 +1165,138 @@ void dibujarJugarFin() {
     sonar(SONIDO_FESTEJO);
 }
 
+// ---------- Agenda: Roberto pregunta "¿ya comiste?" ----------
+// Pantalla: el living, la burbuja con el icono de la actividad y "?", Roberto abajo,
+// y dos plaquitas: "Si" / "Mas tarde". Sin texto de reproche.
+#define AVISO_OPC_Y 292
+#define AVISO_OPC_H 24
+#define AVISO_TIMEOUT_MS 60000UL   // si nadie contesta en 1 minuto, Roberto vuelve a lo suyo
+const int avisoOpcX[2] = {20, 96};
+const int avisoOpcW[2] = {66, 130};
+const char* const avisoOpcTexto[2] = {"S\xA1", "M\xA0s tarde"};  // \xA1 = i con tilde, \xA0 = a con tilde
+
+// Dibuja un icono de 24x24 (los del menu) agrandado
+void dibujarIconoEn(Adafruit_GFX &g, int x, int y, const char* const* icono, uint16_t color, int escala) {
+    for (int fy = 0; fy < 24; fy++)
+        for (int fx = 0; fx < 24; fx++)
+            if (icono[fy][fx] == 'X') g.fillRect(x + fx * escala, y + fy * escala, escala, escala, color);
+}
+
+void dibujarOpcionAviso(int i) {
+    GFXcanvas16* lienzo = empezarZona(FONDO_COLOR, FONDO_CONTEO, FONDO_RUNS, FONDO_ANCHO,
+                                      avisoOpcX[i], AVISO_OPC_Y, avisoOpcW[i], AVISO_OPC_H, 1.0);
+    if (!lienzo) return;
+    uint16_t borde = tft.color565(235, 203, 118);
+    uint16_t amarillo = tft.color565(248, 231, 121);
+    uint16_t naranja = tft.color565(235, 152, 102);
+    int w = avisoOpcW[i];
+    lienzo->fillRect(0, 0, w, AVISO_OPC_H, borde);
+    lienzo->fillRect(2, 2, w - 4, AVISO_OPC_H - 4, amarillo);
+    if (i == cursorAviso) {
+        lienzo->fillTriangle(6, 5, 6, 18, 15, 11, ILI9341_WHITE);
+        lienzo->drawTriangle(6, 5, 6, 18, 15, 11, naranja);
+    }
+    lienzo->cp437(true);
+    lienzo->setTextSize(2);
+    lienzo->setTextColor(naranja);
+    lienzo->setCursor(20, 5);
+    lienzo->print(avisoOpcTexto[i]);
+    terminarZona(lienzo, avisoOpcX[i], AVISO_OPC_Y);
+}
+
+void dibujarAviso() {
+    Rango& r = rangos[rangoAviso];
+    dibujarFondo();
+    dibujarSpriteGenerico(BURBUJA_X, BURBUJA_Y, spr_burbujatexto, PALETA_BURBUJATEXTO,
+                          PALETA_BURBUJATEXTO_COLORES, PALETA_BURBUJATEXTO_N, BURBUJA_ESCALA);
+    // icono grande + "?" en el medio de la burbuja
+    uint16_t tinta = PALETA_COLORES[0];
+    int ix = 69, iy = 56;
+    if (r.actividad == ACT_COMIDA) dibujarIconoEn(tft, ix, iy, ICONO_COMIDA, tinta, 3);
+    else if (r.actividad == ACT_DORMIR) dibujarIconoEn(tft, ix, iy, ICONO_DORMIR, tinta, 3);
+    else {
+        // higiene: gota de agua provisoria, hasta que este el icono de bano dibujado
+        uint16_t agua = tft.color565(77, 160, 230);
+        tft.fillCircle(ix + 36, iy + 46, 22, agua);
+        tft.fillTriangle(ix + 15, iy + 40, ix + 57, iy + 40, ix + 36, iy + 2, agua);
+    }
+    tft.setTextSize(5);
+    tft.setTextColor(tinta);
+    tft.setCursor(ix + 80, iy + 18);
+    tft.print("?");
+    for (int i = 0; i < 2; i++) dibujarOpcionAviso(i);
+    hablarInicio = millis();
+    hablarDuracion = 1200;
+    frameHablarDibujado = frameHablar();
+    dibujarZonaHablar(frameHablarDibujado);
+}
+
+void mostrarAviso(int i) {
+    rangoAviso = i;
+    cursorAviso = 0;
+    avisoInicio = millis();
+    ultimoAvisoGlobal = millis();
+    rangos[i].avisos++;
+    rangos[i].ultimoAvisoMs = millis();
+    sonar(SONIDO_AVISO);  // de noche no suena (ver enSilencio)
+    irA(P_AVISO);
+}
+
+// "Si": la persona lo hizo. Roberto lo hace con ella.
+void responderSi() {
+    Rango& r = rangos[rangoAviso];
+    r.confirmado = true;
+    enviarRegistro(rangoAviso, "si");
+    if (r.actividad == ACT_COMIDA) {
+        irA(P_COMIDA);  // comen juntos: se elige la comida y Roberto va a la cocina
+    } else if (r.actividad == ACT_DORMIR && suenoActual < 100) {
+        enviarAccion("dormir");
+        irA(P_DORMIR);
+    } else {
+        empezarAnimPrincipal(ANIM_FESTEJO, 1500);
+        irA(P_PRINCIPAL);
+    }
+}
+
+// "Mas tarde": sin problema. Roberto saluda y vuelve a preguntar despues.
+void responderMasTarde() {
+    enviarRegistro(rangoAviso, "mas_tarde");
+    empezarAnimPrincipal(ANIM_SALUDO, 1200);
+    irA(P_PRINCIPAL);
+}
+
+// Se llama desde el loop una vez por segundo: ¿toca preguntar algo?
+void revisarAgenda() {
+    if (!rutinaLista || !horaLista()) return;
+    int m = minutoDelDia();
+    for (int i = 0; i < nRangos; i++) {
+        Rango& r = rangos[i];
+        long v = vueltaDeRango(r);
+        if (v != r.vuelta) {  // empezo una vuelta nueva del rango: cada dia arranca de cero
+            r.vuelta = v;
+            r.confirmado = false;
+            r.avisos = 0;
+            r.cerrado = false;
+        }
+        bool dentro = enRango(r.desde, r.hasta, m);
+        // termino el rango, pregunto y no hubo "si": se anota en silencio para el acompanante
+        if (!dentro && r.avisos > 0 && !r.confirmado && !r.cerrado) {
+            r.cerrado = true;
+            enviarRegistro(i, "sin_respuesta");
+        }
+    }
+    // solo se pregunta con Roberto tranquilo en la pantalla principal
+    if (pantallaActual != P_PRINCIPAL || animPrincipal != ANIM_REPOSO) return;
+    if (ultimoAvisoGlobal != 0 && millis() - ultimoAvisoGlobal < 2 * 60000UL) return;
+    for (int i = 0; i < nRangos; i++) {
+        Rango& r = rangos[i];
+        if (r.confirmado || r.avisos >= maxAvisos || !enRango(r.desde, r.hasta, m)) continue;
+        if (r.avisos > 0 && millis() - r.ultimoAvisoMs < (unsigned long)reinsistirMin * 60000UL) continue;
+        mostrarAviso(i);
+        return;
+    }
+}
+
 void irA(int nueva) {
     pantallaActual = static_cast<Pantalla>(nueva);
     switch (nueva) {
@@ -1053,6 +1309,7 @@ void irA(int nueva) {
         case P_INFO_RESPUESTA: dibujarInfoRespuesta(); break;
         case P_JUGAR: dibujarJugar(); break;
         case P_JUGAR_FIN: dibujarJugarFin(); break;
+        case P_AVISO: dibujarAviso(); break;
     }
 }
 
@@ -1083,7 +1340,7 @@ void setup() {
     // La red corre aparte (nucleo 0): Roberto ya se puede usar mientras conecta.
     // Prioridad 0 (la mas baja): el cifrado HTTPS tarda varios segundos y si no
     // deja descansar al nucleo 0, el "watchdog" cree que se colgo y reinicia la placa.
-    colaAcciones = xQueueCreate(8, sizeof(const char*));
+    colaAcciones = xQueueCreate(8, sizeof(Pedido));
     xTaskCreatePinnedToCore(tareaRed, "red", 16384, nullptr, tskIDLE_PRIORITY, nullptr, 0);
 }
 
@@ -1104,6 +1361,11 @@ void loop() {
             if (durmiendoServidor && suenoActual < 100 && pantallaActual == P_PRINCIPAL) irA(P_DORMIR);
         }
         // en la principal no hace falta: animarPrincipal() ya elige el sprite segun los stats
+    }
+
+    if (millis() - ultimaRevisionAgenda > 1000) {
+        ultimaRevisionAgenda = millis();
+        revisarAgenda();
     }
 
     switch (pantallaActual) {
@@ -1184,11 +1446,32 @@ void loop() {
             if (back) irA(P_JUGAR_FIN);
             break;
 
+        case P_AVISO: {
+            int frame = frameHablar();
+            if (frame != frameHablarDibujado) {
+                frameHablarDibujado = frame;
+                dibujarZonaHablar(frame);
+            }
+            if (nav) {
+                cursorAviso = 1 - cursorAviso;
+                dibujarOpcionAviso(0);
+                dibujarOpcionAviso(1);
+            }
+            if (sel) {
+                if (cursorAviso == 0) responderSi();
+                else responderMasTarde();
+            } else if (back) {
+                responderMasTarde();
+            } else if (millis() - avisoInicio > AVISO_TIMEOUT_MS) {
+                irA(P_PRINCIPAL);  // nadie contesto: Roberto vuelve a lo suyo, sin anotar nada
+            }
+            break;
+        }
+
         case P_JUGAR_FIN:
             // cualquier boton: los corazones van a la dopamina y Roberto vuelve festejando
             if (sel || nav || back) {
-                puntosParaEnviar = corazones;
-                enviarAccion("jugar");
+                enviarAccion("jugar", corazones);
                 empezarAnimPrincipal(ANIM_FESTEJO, 1500);
                 irA(P_PRINCIPAL);
             }
