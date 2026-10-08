@@ -1,0 +1,22 @@
+[
+  {
+    "clave": "nombre",
+    "pregunta": "Nombre",
+    "respuesta": "Me llamo Roberto y soy un Tamagotchi."
+  },
+  {
+    "clave": "edad",
+    "pregunta": "Edad",
+    "respuesta": "Llevo todos los dias esperando que me cuides."
+  },
+  {
+    "clave": "comida_favorita",
+    "pregunta": "Comida favorita",
+    "respuesta": "Me encanta que me alimentes."
+  },
+  {
+    "clave": "juego_favorito",
+    "pregunta": "Juego favorito",
+    "respuesta": "Mi juego favorito es jugar con vos."
+  }
+]

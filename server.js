@@ -201,6 +201,22 @@ app.get('/respuesta/:clave', async (req, res) => {
 });
 
 // ---------------------------------------------
+// 6b. ENDPOINT: GET /preguntas
+// ---------------------------------------------
+// La lista de preguntas que muestra Roberto en Info, en orden: [{ clave, pregunta }]
+app.get('/preguntas', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT pregunta_clave AS clave, pregunta FROM respuestas_fijas ORDER BY orden'
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error al buscar las preguntas' });
+    }
+});
+
+// ---------------------------------------------
 // 7. LEVANTAR EL SERVER
 // ---------------------------------------------
 // Antes de arrancar, agrega a la base lo que haga falta (si ya existe, no hace nada).
@@ -216,6 +232,36 @@ async function prepararBase() {
             fecha TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`
     );
+    await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS pregunta TEXT');
+    await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS orden INTEGER NOT NULL DEFAULT 0');
+    await cargarPreguntas();
+}
+
+// Las preguntas y respuestas se escriben en preguntas.json (no en la base).
+// Cada vez que el servidor arranca (o sea, cada vez que se sube un cambio a GitHub),
+// la tabla respuestas_fijas se reemplaza por lo que diga ese archivo.
+// OJO: si se edita la tabla a mano en la base, se pisa en el próximo arranque.
+async function cargarPreguntas() {
+    const preguntas = require('./preguntas.json');
+    const cliente = await pool.connect();
+    try {
+        await cliente.query('BEGIN');
+        await cliente.query('DELETE FROM respuestas_fijas');
+        for (let i = 0; i < preguntas.length; i++) {
+            const { clave, pregunta, respuesta } = preguntas[i];
+            await cliente.query(
+                'INSERT INTO respuestas_fijas (pregunta_clave, pregunta, respuesta, orden) VALUES ($1, $2, $3, $4)',
+                [clave, pregunta, respuesta, i]
+            );
+        }
+        await cliente.query('COMMIT');
+        console.log(`Preguntas cargadas: ${preguntas.length}`);
+    } catch (err) {
+        await cliente.query('ROLLBACK');
+        throw err;
+    } finally {
+        cliente.release();
+    }
 }
 
 prepararBase()

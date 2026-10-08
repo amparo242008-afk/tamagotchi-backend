@@ -84,10 +84,18 @@ int comidaElegida = 0;  // copia de cursorComida al entrar a la cocina
 const char* comidaItems[2] = {"Leche", "Torta"};
 
 int cursorInfo = 0;
-// El fondo tiene lugar para 6 preguntas; se usan las que esten cargadas aca
-#define N_PREGUNTAS 4
-const char* infoPreguntas[N_PREGUNTAS] = {"Nombre", "Edad", "Comida favorita", "Juego favorito"};
-const char* infoClaves[N_PREGUNTAS] = {"nombre", "edad", "comida_favorita", "juego_favorito"};
+// Las preguntas se escriben en preguntas.json (en el servidor) y Roberto las baja al prender.
+// Estas son solo por si no hay internet. El fondo tiene lugar para 6.
+#define MAX_PREGUNTAS 6
+#define N_PREGUNTAS_FIJAS 4
+const char* preguntasFijas[N_PREGUNTAS_FIJAS] = {"Nombre", "Edad", "Comida favorita", "Juego favorito"};
+const char* clavesFijas[N_PREGUNTAS_FIJAS] = {"nombre", "edad", "comida_favorita", "juego_favorito"};
+char preguntasBajadas[MAX_PREGUNTAS][40];
+char clavesBajadas[MAX_PREGUNTAS][40];
+int nPreguntasBajadas = 0;
+volatile bool preguntasListas = false;   // true cuando ya se bajaron del servidor
+bool infoDibujadaConBajadas = false;
+
 String respuestaActual = "";
 
 unsigned long cocinaInicio = 0;
@@ -301,16 +309,48 @@ void enviarAccion(const char* tipo) {
 
 // Tarea de red: corre sola en el nucleo 0, mientras el loop (nucleo 1) dibuja y lee botones.
 // Manda las acciones pendientes y cada 1 minuto vuelve a pedir los stats.
+// Las preguntas que se usan: las bajadas del servidor, o las fijas si no hubo internet
+int cantPreguntas() { return preguntasListas ? nPreguntasBajadas : N_PREGUNTAS_FIJAS; }
+const char* textoPregunta(int i) { return preguntasListas ? preguntasBajadas[i] : preguntasFijas[i]; }
+const char* clavePregunta(int i) { return preguntasListas ? clavesBajadas[i] : clavesFijas[i]; }
+
+// Baja la lista de preguntas (GET /preguntas). Se llama solo desde la tarea de red.
+void descargarPreguntas() {
+    if (preguntasListas || WiFi.status() != WL_CONNECTED) return;
+    HTTPClient http;
+    http.begin(String(urlBase) + "/preguntas");
+    if (http.GET() == 200) {
+        JsonDocument doc;
+        if (!deserializeJson(doc, http.getString())) {
+            int n = 0;
+            for (JsonObject p : doc.as<JsonArray>()) {
+                if (n >= MAX_PREGUNTAS) break;
+                // las tildes se pasan a la tabla de la pantalla (ver aCp437)
+                strlcpy(preguntasBajadas[n], aCp437(p["pregunta"] | "").c_str(), sizeof(preguntasBajadas[n]));
+                strlcpy(clavesBajadas[n], p["clave"] | "", sizeof(clavesBajadas[n]));
+                n++;
+            }
+            if (n > 0) {
+                nPreguntasBajadas = n;
+                preguntasListas = true;  // recien ahora el loop las empieza a usar
+            }
+        }
+    }
+    http.end();
+}
+
 void tareaRed(void*) {
     unsigned long inicioWiFi = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - inicioWiFi < 10000) vTaskDelay(pdMS_TO_TICKS(100));
     consultarEstado();
+    descargarPreguntas();
     for (;;) {
         const char* tipo;
         if (xQueueReceive(colaAcciones, &tipo, pdMS_TO_TICKS(intervaloConsultaMs)) == pdTRUE) {
             enviarAccionAhora(tipo);
         } else {
             consultarEstado();
+            descargarPreguntas();  // por si la primera vez no hubo internet
         }
     }
 }
@@ -638,18 +678,28 @@ void dibujarRenglonInfo(int i) {
         lienzo->fillTriangle(6, medio - 7, 6, medio + 7, 17, medio, ILI9341_WHITE);
         lienzo->drawTriangle(6, medio - 7, 6, medio + 7, 17, medio, naranja);
     }
-    if (i < N_PREGUNTAS) {
-        lienzo->setTextSize(2);
+    if (i < cantPreguntas()) {
+        // letra grande si entra en el renglon; si no, chica
+        lienzo->cp437(true);
+        lienzo->setTextSize(strlen(textoPregunta(i)) <= 15 ? 2 : 1);
         lienzo->setTextColor(naranja);
-        lienzo->setCursor(24, medio - 7);
-        lienzo->print(infoPreguntas[i]);
+        lienzo->setCursor(24, strlen(textoPregunta(i)) <= 15 ? medio - 7 : medio - 3);
+        lienzo->print(textoPregunta(i));
     }
     terminarZona(lienzo, RENGLON_X, renglonY0[i]);
 }
 
 void dibujarInfoMenu() {
     dibujarFondoRLE(FONDO_INFO_COLOR, FONDO_INFO_CONTEO, FONDO_INFO_RUNS, FONDO_INFO_ANCHO, FONDO_INFO_ALTO, 1.0);
-    for (int i = 0; i < N_PREGUNTAS; i++) dibujarRenglonInfo(i);
+    // titulo en la plaquita de arriba (x 52..188, y 4..32)
+    const char* titulo = "PREGUNTAS";
+    tft.setTextSize(2);
+    tft.setTextColor(tft.color565(235, 152, 102));
+    tft.setCursor(120 - (strlen(titulo) * 12 - 2) / 2, 11);
+    tft.print(titulo);
+    infoDibujadaConBajadas = preguntasListas;
+    if (cursorInfo >= cantPreguntas()) cursorInfo = 0;
+    for (int i = 0; i < cantPreguntas(); i++) dibujarRenglonInfo(i);
 }
 
 // ---------- Info: Roberto contesta con una burbuja de dialogo ----------
@@ -928,9 +978,11 @@ void loop() {
             break;
 
         case P_INFO:
+            // si las preguntas del servidor llegaron con la pantalla abierta, se redibuja
+            if (preguntasListas != infoDibujadaConBajadas) dibujarInfoMenu();
             if (nav) {
                 int anterior = cursorInfo;
-                cursorInfo = (cursorInfo + 1) % N_PREGUNTAS;
+                cursorInfo = (cursorInfo + 1) % cantPreguntas();
                 dibujarRenglonInfo(anterior);
                 dibujarRenglonInfo(cursorInfo);
             }
@@ -940,7 +992,7 @@ void loop() {
                 respuestaActual = "...";
                 hablarDuracion = 0;
                 irA(P_INFO_RESPUESTA);
-                decirRespuesta(obtenerRespuesta(infoClaves[cursorInfo]));
+                decirRespuesta(obtenerRespuesta(clavePregunta(cursorInfo)));
             }
             break;
 
