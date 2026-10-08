@@ -1,7 +1,7 @@
 # png_a_rle.py - Convierte un fondo PNG (240x320, exportado de Piskel) en un .h comprimido con RLE
 #
 # Uso (desde la carpeta Tamagotchi-Wokwi):
-#   python herramientas/png_a_rle.py imagenes/FondoMenu.png fondo_menu.h FONDO_MENU
+#   python herramientas/png_a_rle.py imagenes/FondoMenu.png fondos/fondo_menu.h FONDO_MENU
 #
 # Genera FONDO_MENU_COLOR, FONDO_MENU_CONTEO, FONDO_MENU_RUNS, FONDO_MENU_ANCHO y FONDO_MENU_ALTO,
 # igual que los otros fondos. No necesita instalar nada (solo Python).

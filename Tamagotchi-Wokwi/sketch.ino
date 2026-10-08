@@ -4,15 +4,17 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
-#include "sprites.h"
-#include "comida.h"
-#include "iconos.h"
-#include "fondo.h"
-#include "cocina.h"
-#include "fondo_menu.h"
-#include "fondo_comida.h"
-#include "efectos.h"
-#include "fondo_info.h"
+#include "sprites/sprites.h"
+#include "sprites/comida.h"
+#include "sprites/iconos.h"
+#include "fondos/fondo.h"
+#include "fondos/cocina.h"
+#include "fondos/fondo_menu.h"
+#include "fondos/fondo_comida.h"
+#include "sprites/efectos.h"
+#include "fondos/fondo_info.h"
+#include "fondos/parque.h"
+#include "sprites/ObjetosJuego.h"
 
 const char* ssid = "Wokwi-GUEST";
 const char* password = "";
@@ -62,6 +64,7 @@ volatile int hambreActual = 100;
 volatile int suenoActual = 100;
 volatile int dopaminaActual = 100;
 volatile bool statsNuevos = false;
+volatile int puntosParaEnviar = 0;            // corazones del minijuego, viajan con "jugar"
 volatile bool durmiendoServidor = false;      // el servidor dice que Roberto esta dormido
 volatile bool primeraConsulta = true;         // para retomar el sueno si se reinicio la placa
 volatile uint32_t intervaloConsultaMs = 60000;  // cada cuanto se piden los stats (mas seguido al dormir)
@@ -70,7 +73,7 @@ volatile uint32_t intervaloConsultaMs = 60000;  // cada cuanto se piden los stat
 QueueHandle_t colaAcciones;
 
 // ---------- Pantallas ----------
-enum Pantalla { P_PRINCIPAL, P_MENU, P_COMIDA, P_COCINA, P_DORMIR, P_INFO, P_INFO_RESPUESTA, P_JUGAR };
+enum Pantalla { P_PRINCIPAL, P_MENU, P_COMIDA, P_COCINA, P_DORMIR, P_INFO, P_INFO_RESPUESTA, P_JUGAR, P_JUGAR_FIN };
 Pantalla pantallaActual = P_PRINCIPAL;
 
 int cursorMenu = 0;
@@ -137,6 +140,8 @@ const Nota SONIDO_FESTEJO[]  = {{DO5, 90}, {MI5, 90}, {SOL5, 90}, {DO6, 220}, {0
 const Nota SONIDO_MORDIDA[]  = {{330, 35}, {0, 0}};
 const Nota SONIDO_DORMIR[]   = {{SOL5, 160}, {MI5, 160}, {DO5, 300}, {0, 0}};
 const Nota SONIDO_HABLAR[]   = {{LA5, 30}, {0, 0}};
+const Nota SONIDO_CORAZON[]  = {{1319, 40}, {1760, 60}, {0, 0}};
+const Nota SONIDO_BOMBA[]    = {{220, 120}, {0, 0}};
 const Nota SONIDO_NO[]       = {{MI5, 80}, {0, 40}, {DO5, 120}, {0, 0}};
 
 // tone() del ESP32 tiene su propia cola: las notas se mandan todas juntas y suenan
@@ -173,16 +178,19 @@ uint16_t oscurecer(uint16_t color565, float factor) {
 // ---------- Dibujo de sprites, con transparencia real ----------
 // "g" puede ser la pantalla (tft) o un lienzo en memoria (GFXcanvas16).
 // colMax: solo dibuja las columnas 0..colMax-1 (sirve para "morder" la comida).
+// lado: 24 para Roberto y la comida, 16 para el corazon y la bomba.
+// espejo: lo dibuja dado vuelta (mirando para el otro lado).
 void dibujarSpriteEn(Adafruit_GFX &g, int x, int y, const char* const* sprite,
                      const char* letras, const uint16_t* colores, int n, int escala,
-                     float factor = 1.0, int colMax = 24) {
-    for (int fy = 0; fy < 24; fy++) {
-        for (int fx = 0; fx < colMax; fx++) {
+                     float factor = 1.0, int colMax = 24, int lado = 24, bool espejo = false) {
+    for (int fy = 0; fy < lado; fy++) {
+        for (int fx = 0; fx < min(colMax, lado); fx++) {
             char c = sprite[fy][fx];
             if (c == '.') continue;
             uint16_t color = colorDeLetraPaleta(c, letras, colores, n);
             if (factor < 0.999) color = oscurecer(color, factor);
-            g.fillRect(x + fx * escala, y + fy * escala, escala, escala, color);
+            int px = espejo ? (lado - 1 - fx) : fx;
+            g.fillRect(x + px * escala, y + fy * escala, escala, escala, color);
         }
     }
 }
@@ -229,11 +237,14 @@ void dibujarFondoCocina(float factor = 1.0) {
 // Sirve para animar: en vez de repintar toda la pantalla (lento, parpadea y
 // mientras tanto no se leen los botones) se repinta solo la zona del sprite.
 void fondoRegionEnBuffer(const uint16_t* colores, const uint16_t* conteos, int runs, int ancho,
-                         int rx, int ry, int rw, int rh, float factor, uint16_t* buf) {
-    uint32_t pos = 0;
+                         int rx, int ry, int rw, int rh, float factor, uint16_t* buf,
+                         int runInicio = 0, uint32_t posInicio = 0) {
+    // runInicio/posInicio: si se sabe en que run empieza la fila ry, se arranca
+    // directo de ahi (ver indice del parque en el minijuego). Si no, desde el principio.
+    uint32_t pos = posInicio;
     uint32_t inicio = (uint32_t)ry * ancho;
     uint32_t fin = (uint32_t)(ry + rh) * ancho;
-    for (int i = 0; i < runs && pos < fin; i++) {
+    for (int i = runInicio; i < runs && pos < fin; i++) {
         uint32_t a = pos;
         uint32_t b = pos + pgm_read_word(&conteos[i]);
         pos = b;
@@ -295,7 +306,9 @@ void enviarAccionAhora(const char* tipo) {
     HTTPClient http;
     http.begin(String(urlBase) + "/accion");
     http.addHeader("Content-Type", "application/json");
-    http.POST(String("{\"tipo\":\"") + tipo + "\"}");
+    String cuerpo = String("{\"tipo\":\"") + tipo + "\"";
+    if (strcmp(tipo, "jugar") == 0) cuerpo += ",\"puntos\":" + String(puntosParaEnviar);
+    http.POST(cuerpo + "}");
     http.end();
     consultarEstado();
 }
@@ -830,13 +843,202 @@ void dibujarInfoRespuesta() {
     dibujarZonaHablar(frameHablarDibujado);
 }
 
+// ---------- Minijuego "Atrapar" ----------
+// Roberto corre por el parque atrapando corazones (+1) y esquivando bombas (-1).
+// Boton izquierdo (NAV) = izquierda, boton derecho (SELECT) = derecha,
+// boton del medio (BACK) = terminar. Sin vidas ni "game over": se juega lo que se quiera.
+#define JUEGO_FRAME_MS 33          // ~30 cuadros por segundo
+#define MAX_OBJETOS 6
+#define OBJ_ESCALA 2
+#define OBJ_LADO (16 * OBJ_ESCALA)
+#define PROB_CORAZON 70            // de cada 100 cosas que caen, 70 son corazones
+#define JUEGO_ROB_ESCALA 4
+#define JUEGO_ROB_LADO (24 * JUEGO_ROB_ESCALA)
+#define JUEGO_ROB_Y 208            // con los pies sobre el caminito
+#define JUEGO_ROB_VEL 5
+#define JUEGO_ROB_MIN_X (-20)      // el cuerpo ocupa las columnas 5..16 del sprite
+#define JUEGO_ROB_MAX_X (240 - 68)
+#define HUD_X 6                    // contador de corazones, arriba a la izquierda
+#define HUD_Y 6
+#define HUD_W 100
+#define HUD_H 24
+
+struct Objeto { bool activo; bool corazon; int x; float y; float vel; };
+Objeto objetos[MAX_OBJETOS];
+int robX = 72;
+bool robMiraDerecha = false;   // los sprites de correr miran a la izquierda
+int robFrame = 0;
+int corazones = 0;
+unsigned long juegoUltimoFrame = 0;
+unsigned long juegoProximoObjeto = 0;
+
+// Indice del fondo del parque: en que run empieza cada fila. Asi se puede
+// repintar un pedacito sin recorrer los ~14.000 runs desde el principio.
+uint16_t parqueFilaRun[FONDO_PARQUE_ALTO];
+uint32_t parqueFilaPos[FONDO_PARQUE_ALTO];
+bool parqueIndexado = false;
+
+void indexarParque() {
+    if (parqueIndexado) return;
+    uint32_t pos = 0;
+    int fila = 0;
+    for (int i = 0; i < FONDO_PARQUE_RUNS && fila < FONDO_PARQUE_ALTO; i++) {
+        uint32_t fin = pos + pgm_read_word(&FONDO_PARQUE_CONTEO[i]);
+        while (fila < FONDO_PARQUE_ALTO && (uint32_t)fila * FONDO_PARQUE_ANCHO < fin) {
+            parqueFilaRun[fila] = i;
+            parqueFilaPos[fila] = pos;
+            fila++;
+        }
+        pos = fin;
+    }
+    parqueIndexado = true;
+}
+
+bool seCruzan(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
+    return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
+}
+
+// Repinta un rectangulo del juego con TODO lo que haya ahi (fondo, cosas que caen,
+// Roberto y contador), armado en memoria: nada parpadea aunque se encimen.
+void dibujarEscenaJuego(int rx, int ry, int rw, int rh) {
+    if (rx < 0) { rw += rx; rx = 0; }
+    if (ry < 0) { rh += ry; ry = 0; }
+    if (rx + rw > 240) rw = 240 - rx;
+    if (ry + rh > 320) rh = 320 - ry;
+    if (rw <= 0 || rh <= 0) return;
+    GFXcanvas16* lienzo = new GFXcanvas16(rw, rh);
+    if (!lienzo->getBuffer()) { delete lienzo; return; }
+    fondoRegionEnBuffer(FONDO_PARQUE_COLOR, FONDO_PARQUE_CONTEO, FONDO_PARQUE_RUNS, FONDO_PARQUE_ANCHO,
+                        rx, ry, rw, rh, 1.0, lienzo->getBuffer(), parqueFilaRun[ry], parqueFilaPos[ry]);
+
+    for (int i = 0; i < MAX_OBJETOS; i++) {
+        Objeto& o = objetos[i];
+        if (!o.activo || !seCruzan(rx, ry, rw, rh, o.x, (int)o.y, OBJ_LADO, OBJ_LADO)) continue;
+        if (o.corazon) dibujarSpriteEn(*lienzo, o.x - rx, (int)o.y - ry, SPR_CORAZON, PALETA_CORAZON,
+                                       PALETA_CORAZON_COLORES, PALETA_CORAZON_N, OBJ_ESCALA, 1.0, 16, 16);
+        else dibujarSpriteEn(*lienzo, o.x - rx, (int)o.y - ry, SPR_BOMBA, PALETA_BOMBA,
+                             PALETA_BOMBA_COLORES, PALETA_BOMBA_N, OBJ_ESCALA, 1.0, 16, 16);
+    }
+
+    if (seCruzan(rx, ry, rw, rh, robX, JUEGO_ROB_Y, JUEGO_ROB_LADO, JUEGO_ROB_LADO)) {
+        dibujarSpriteEn(*lienzo, robX - rx, JUEGO_ROB_Y - ry, SPR_CORRER[robFrame], PALETA_LETRAS, PALETA_COLORES,
+                        PALETA_N, JUEGO_ROB_ESCALA, 1.0, 24, 24, robMiraDerecha);
+    }
+
+    if (seCruzan(rx, ry, rw, rh, HUD_X, HUD_Y, HUD_W, HUD_H)) {
+        dibujarSpriteEn(*lienzo, HUD_X - rx, HUD_Y + 4 - ry, SPR_CORAZON, PALETA_CORAZON,
+                        PALETA_CORAZON_COLORES, PALETA_CORAZON_N, 1, 1.0, 16, 16);
+        String texto = "x " + String(corazones);
+        lienzo->setTextSize(2);
+        lienzo->setTextColor(PALETA_COLORES[0]);  // sombrita oscura para que se lea sobre el cielo
+        lienzo->setCursor(HUD_X + 23 - rx, HUD_Y + 6 - ry);
+        lienzo->print(texto);
+        lienzo->setTextColor(ILI9341_WHITE);
+        lienzo->setCursor(HUD_X + 22 - rx, HUD_Y + 5 - ry);
+        lienzo->print(texto);
+    }
+    terminarZona(lienzo, rx, ry);
+}
+
 void dibujarJugar() {
-    tft.fillScreen(ILI9341_BLACK);
-    dibujarSprite(70, 110, SPR_JUGAR[0]);
+    indexarParque();
+    randomSeed(micros());
+    for (int i = 0; i < MAX_OBJETOS; i++) objetos[i].activo = false;
+    robX = 72;
+    robFrame = 0;
+    robMiraDerecha = false;
+    corazones = 0;
+    juegoUltimoFrame = millis();
+    juegoProximoObjeto = millis() + 800;
+    dibujarFondoRLE(FONDO_PARQUE_COLOR, FONDO_PARQUE_CONTEO, FONDO_PARQUE_RUNS, FONDO_PARQUE_ANCHO, FONDO_PARQUE_ALTO, 1.0);
+    dibujarEscenaJuego(robX, JUEGO_ROB_Y, JUEGO_ROB_LADO, JUEGO_ROB_LADO);
+    dibujarEscenaJuego(HUD_X, HUD_Y, HUD_W, HUD_H);
+}
+
+// Un cuadro del juego: mover a Roberto, hacer caer las cosas, ver que atrapo
+void pasoJuego() {
+    bool izq = digitalRead(PIN_NAV) == LOW;
+    bool der = digitalRead(PIN_SELECT) == LOW;
+
+    // Roberto
+    int viejoX = robX;
+    int viejoFrame = robFrame;
+    bool viejoMira = robMiraDerecha;
+    if (izq && !der) { robX -= JUEGO_ROB_VEL; robMiraDerecha = false; }
+    if (der && !izq) { robX += JUEGO_ROB_VEL; robMiraDerecha = true; }
+    robX = constrain(robX, JUEGO_ROB_MIN_X, JUEGO_ROB_MAX_X);
+    robFrame = (izq != der) ? (millis() / 120) % N_CORRER : 0;
+    if (robX != viejoX || robFrame != viejoFrame || robMiraDerecha != viejoMira) {
+        int x0 = min(robX, viejoX);
+        int x1 = max(robX, viejoX) + JUEGO_ROB_LADO;
+        dibujarEscenaJuego(x0, JUEGO_ROB_Y, x1 - x0, JUEGO_ROB_LADO);
+    }
+
+    // Lo que cae
+    int cuerpoX = robX + 5 * JUEGO_ROB_ESCALA;   // la "caja" del cuerpo de Roberto
+    int cuerpoY = JUEGO_ROB_Y + 6 * JUEGO_ROB_ESCALA;
+    int cuerpoW = 12 * JUEGO_ROB_ESCALA;
+    int cuerpoH = 16 * JUEGO_ROB_ESCALA;
+    for (int i = 0; i < MAX_OBJETOS; i++) {
+        Objeto& o = objetos[i];
+        if (!o.activo) continue;
+        int yViejo = (int)o.y;
+        o.y += o.vel;
+        if (seCruzan(o.x + 4, (int)o.y + 4, OBJ_LADO - 8, OBJ_LADO - 8, cuerpoX, cuerpoY, cuerpoW, cuerpoH)) {
+            o.activo = false;
+            if (o.corazon) {
+                corazones++;
+                sonar(SONIDO_CORAZON);
+            } else {
+                if (corazones > 0) corazones--;  // nunca baja de 0
+                sonar(SONIDO_BOMBA);
+            }
+            dibujarEscenaJuego(o.x, yViejo, OBJ_LADO, OBJ_LADO);
+            dibujarEscenaJuego(HUD_X, HUD_Y, HUD_W, HUD_H);
+        } else if (o.y > 320) {
+            o.activo = false;
+            dibujarEscenaJuego(o.x, yViejo, OBJ_LADO, OBJ_LADO);
+        } else {
+            dibujarEscenaJuego(o.x, yViejo, OBJ_LADO, (int)o.y - yViejo + OBJ_LADO);
+        }
+    }
+
+    // Que caiga algo nuevo cada tanto (tranquilo, sin apuro)
+    if (millis() >= juegoProximoObjeto) {
+        for (int i = 0; i < MAX_OBJETOS; i++) {
+            if (objetos[i].activo) continue;
+            objetos[i].activo = true;
+            objetos[i].corazon = random(100) < PROB_CORAZON;
+            objetos[i].x = random(0, 240 - OBJ_LADO);
+            objetos[i].y = -OBJ_LADO;
+            objetos[i].vel = 2.0 + random(0, 16) / 10.0;
+            break;
+        }
+        juegoProximoObjeto = millis() + random(600, 1100);
+    }
+}
+
+// Pantalla final: siempre en positivo, junte lo que junte
+void dibujarJugarFin() {
+    dibujarFondoRLE(FONDO_PARQUE_COLOR, FONDO_PARQUE_CONTEO, FONDO_PARQUE_RUNS, FONDO_PARQUE_ANCHO, FONDO_PARQUE_ALTO, 0.5);
+    uint16_t borde = tft.color565(235, 203, 118);
+    uint16_t amarillo = tft.color565(248, 231, 121);
+    uint16_t naranja = tft.color565(235, 152, 102);
+    // plaquita con el mismo estilo que los menus
+    tft.fillRect(30, 50, 180, 110, borde);
+    tft.fillRect(33, 53, 174, 104, amarillo);
+    tft.cp437(true);
     tft.setTextSize(2);
-    tft.setTextColor(ILI9341_WHITE);
-    tft.setCursor(15, 230);
-    tft.print("Proximamente...");
+    tft.setTextColor(naranja);
+    const char* titulo = "\xAD" "Bien jugado!";  // \xAD = "¡" en la fuente de la pantalla
+    tft.setCursor(120 - (strlen(titulo) * 12 - 2) / 2, 66);
+    tft.print(titulo);
+    dibujarSpriteEn(tft, 66, 98, SPR_CORAZON, PALETA_CORAZON, PALETA_CORAZON_COLORES, PALETA_CORAZON_N, 3, 1.0, 16, 16);
+    tft.setTextSize(4);
+    tft.setCursor(124, 108);
+    tft.print("x" + String(corazones));
+    dibujarSprite(60, 175, SPR_FESTEJO[0]);
+    sonar(SONIDO_FESTEJO);
 }
 
 void irA(int nueva) {
@@ -850,6 +1052,7 @@ void irA(int nueva) {
         case P_INFO: dibujarInfoMenu(); break;
         case P_INFO_RESPUESTA: dibujarInfoRespuesta(); break;
         case P_JUGAR: dibujarJugar(); break;
+        case P_JUGAR_FIN: dibujarJugarFin(); break;
     }
 }
 
@@ -888,7 +1091,7 @@ void loop() {
     bool nav = sePresiono(PIN_NAV, navAnterior);
     bool sel = sePresiono(PIN_SELECT, selectAnterior);
     bool back = sePresiono(PIN_BACK, backAnterior);
-    if (nav || sel || back) sonar(SONIDO_BOTON);  // "clic" suave en cada boton
+    if ((nav || sel || back) && pantallaActual != P_JUGAR) sonar(SONIDO_BOTON);  // "clic" suave (en el juego no)
 
     // Llegaron stats nuevos del servidor: actualizar lo que se ve
     if (statsNuevos) {
@@ -974,7 +1177,21 @@ void loop() {
             break;
 
         case P_JUGAR:
-            if (back || sel) irA(P_MENU);
+            if (millis() - juegoUltimoFrame >= JUEGO_FRAME_MS) {
+                juegoUltimoFrame = millis();
+                pasoJuego();
+            }
+            if (back) irA(P_JUGAR_FIN);
+            break;
+
+        case P_JUGAR_FIN:
+            // cualquier boton: los corazones van a la dopamina y Roberto vuelve festejando
+            if (sel || nav || back) {
+                puntosParaEnviar = corazones;
+                enviarAccion("jugar");
+                empezarAnimPrincipal(ANIM_FESTEJO, 1500);
+                irA(P_PRINCIPAL);
+            }
             break;
 
         case P_INFO:
@@ -1008,5 +1225,5 @@ void loop() {
         }
     }
 
-    delay(50);
+    delay(pantallaActual == P_JUGAR ? 2 : 50);  // en el juego, el ritmo lo marca JUEGO_FRAME_MS
 }

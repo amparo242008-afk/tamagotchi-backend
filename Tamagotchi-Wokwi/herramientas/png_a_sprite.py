@@ -6,7 +6,7 @@
 #
 # - Si todos los colores son de Roberto, usa su paleta (PALETA_LETRAS de sprites.h).
 # - Si no, arma una paleta propia para ese sprite (PALETA_<NOMBRE>), como en comida.h.
-# Imprime el codigo C: se copia y se pega en el .h que corresponda.
+# Imprime el codigo C: se copia y se pega en el .h que corresponda (carpeta sprites/).
 import os
 import sys
 

@@ -46,6 +46,11 @@ const DECAIMIENTO_POR_MINUTO = {
 // Con 10 puntos por minuto, de 0 a 100 tarda 10 minutos.
 const RECUPERACION_SUENO_POR_MINUTO = 10;
 
+// Minijuego "Atrapar": dopamina = base por jugar + puntos por corazón, con un tope por partida
+const JUGAR_BASE = 5;
+const JUGAR_POR_CORAZON = 3;
+const JUGAR_MAXIMO = 50;
+
 // ---------------------------------------------
 // 3. LA FUNCIÓN CLAVE: calcular el estado actual
 // ---------------------------------------------
@@ -154,7 +159,12 @@ app.post('/accion', async (req, res) => {
             dopamina: estadoActual.dopamina,
             durmiendo: estadoActual.durmiendo,
         };
-        if (accion.columna) {
+        if (tipo === 'jugar') {
+            // Minijuego: haber jugado ya suma algo, y cada corazón atrapado suma más
+            const puntos = Math.max(0, Math.floor(Number(req.body.puntos) || 0));
+            const suma = Math.min(JUGAR_MAXIMO, JUGAR_BASE + puntos * JUGAR_POR_CORAZON);
+            nuevoEstado.dopamina = Math.min(100, nuevoEstado.dopamina + suma);
+        } else if (accion.columna) {
             nuevoEstado[accion.columna] = Math.min(100, nuevoEstado[accion.columna] + accion.suma);
         }
         if (accion.durmiendo !== undefined) {
