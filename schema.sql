@@ -18,7 +18,20 @@ CREATE TABLE IF NOT EXISTS estado_mascota (
 CREATE TABLE IF NOT EXISTS historial_acciones (
     id    SERIAL PRIMARY KEY,
     tipo  TEXT        NOT NULL,
-    fecha TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    fecha TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    clave TEXT  -- de qué rango de la agenda es (ej. "almuerzo"); vacío en las acciones del juguete
+);
+
+-- Cuántas veces preguntó Roberto en cada rango de la agenda, por día.
+-- cantidad_insistencias = 3 y completado = false: se avisó el máximo y no hubo "sí".
+CREATE TABLE IF NOT EXISTS seguimiento_avisos (
+    id                    SERIAL PRIMARY KEY,
+    tipo                  TEXT        NOT NULL,  -- clave del rango: desayuno, almuerzo, cena, bano, dormir
+    fecha                 DATE        NOT NULL,  -- día en que empezó el rango
+    cantidad_insistencias INTEGER     NOT NULL DEFAULT 0,
+    ultima_insistencia    TIMESTAMPTZ,
+    completado            BOOLEAN     NOT NULL DEFAULT FALSE,
+    UNIQUE (tipo, fecha)
 );
 
 -- Se llena sola desde preguntas.json cada vez que arranca el servidor

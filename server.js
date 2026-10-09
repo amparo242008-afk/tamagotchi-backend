@@ -255,6 +255,12 @@ function inicioUltimoRango(rango) {
     return new Date(inicioAr.getTime() - OFFSET_ARGENTINA_MS);
 }
 
+// El día (en Argentina) en que empezó esa vuelta del rango, ej. "2026-10-09".
+// Es la fecha de la fila en seguimiento_avisos (el "dormir" de las 00:30 cuenta para ayer).
+function fechaDelRango(rango) {
+    return new Date(inicioUltimoRango(rango).getTime() + OFFSET_ARGENTINA_MS).toISOString().slice(0, 10);
+}
+
 function leerRutina() {
     delete require.cache[require.resolve('./rutina.json')];
     return require('./rutina.json');
@@ -271,7 +277,20 @@ app.get('/rutina', async (req, res) => {
                  WHERE clave = $1 AND tipo LIKE 'confirmo_%' AND fecha >= $2 LIMIT 1`,
                 [r.clave, inicioUltimoRango(r)]
             );
-            rangos.push({ ...r, confirmado: result.rows.length > 0 });
+            // cuántas veces ya preguntó hoy, para que un reinicio no vuelva a contar desde 0
+            const seguimiento = await pool.query(
+                `SELECT cantidad_insistencias,
+                        FLOOR(EXTRACT(EPOCH FROM NOW() - ultima_insistencia) / 60) AS min_desde_ultimo
+                 FROM seguimiento_avisos WHERE tipo = $1 AND fecha = $2`,
+                [r.clave, fechaDelRango(r)]
+            );
+            const fila = seguimiento.rows[0];
+            rangos.push({
+                ...r,
+                confirmado: result.rows.length > 0,
+                avisos: fila ? fila.cantidad_insistencias : 0,
+                min_desde_ultimo: fila && fila.min_desde_ultimo !== null ? Number(fila.min_desde_ultimo) : null,
+            });
         }
         res.json({
             reinsistir_min: rutina.reinsistir_min,
@@ -285,16 +304,37 @@ app.get('/rutina', async (req, res) => {
     }
 });
 
-// Body: { "clave": "almuerzo", "respuesta": "si" | "mas_tarde" | "sin_respuesta" }
+// Body: { "clave": "almuerzo", "respuesta": "aviso" | "si" | "mas_tarde" | "sin_respuesta" }
+// "aviso" = Roberto acaba de preguntar (no va al historial, solo suma en seguimiento_avisos).
 app.post('/registro', async (req, res) => {
     const { clave, respuesta } = req.body;
     const prefijos = { si: 'confirmo', mas_tarde: 'posterga', sin_respuesta: 'sin_respuesta' };
     const rango = leerRutina().rangos.find((r) => r.clave === clave);
-    if (!rango || !prefijos[respuesta]) {
+    if (!rango || (!prefijos[respuesta] && respuesta !== 'aviso')) {
         return res.status(400).json({ error: 'Registro inválido' });
     }
     const tipo = `${prefijos[respuesta]}_${rango.actividad}`;
     try {
+        // seguimiento_avisos: una fila por rango y por día (la lee el panel del acompañante)
+        if (respuesta === 'aviso') {
+            await pool.query(
+                `INSERT INTO seguimiento_avisos (tipo, fecha, cantidad_insistencias, ultima_insistencia)
+                 VALUES ($1, $2, 1, NOW())
+                 ON CONFLICT (tipo, fecha) DO UPDATE
+                 SET cantidad_insistencias = seguimiento_avisos.cantidad_insistencias + 1,
+                     ultima_insistencia = NOW()`,
+                [clave, fechaDelRango(rango)]
+            );
+            return res.json({ mensaje: 'aviso anotado' });
+        }
+        if (respuesta === 'si') {
+            await pool.query(
+                `INSERT INTO seguimiento_avisos (tipo, fecha, completado)
+                 VALUES ($1, $2, TRUE)
+                 ON CONFLICT (tipo, fecha) DO UPDATE SET completado = TRUE`,
+                [clave, fechaDelRango(rango)]
+            );
+        }
         // "sin respuesta" se anota una sola vez por rango (por si la placa se reinicia)
         if (respuesta === 'sin_respuesta') {
             const ya = await pool.query(
@@ -330,6 +370,18 @@ async function prepararBase() {
     );
     // clave: de que rango de la rutina es el registro (ej. "almuerzo"); vacío en las acciones del juguete
     await pool.query('ALTER TABLE historial_acciones ADD COLUMN IF NOT EXISTS clave TEXT');
+    // tipo = clave del rango (desayuno, almuerzo, cena, bano, dormir)
+    await pool.query(
+        `CREATE TABLE IF NOT EXISTS seguimiento_avisos (
+            id                    SERIAL PRIMARY KEY,
+            tipo                  TEXT        NOT NULL,
+            fecha                 DATE        NOT NULL,
+            cantidad_insistencias INTEGER     NOT NULL DEFAULT 0,
+            ultima_insistencia    TIMESTAMPTZ,
+            completado            BOOLEAN     NOT NULL DEFAULT FALSE,
+            UNIQUE (tipo, fecha)
+        )`
+    );
     await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS pregunta TEXT');
     await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS orden INTEGER NOT NULL DEFAULT 0');
     await cargarPreguntas();

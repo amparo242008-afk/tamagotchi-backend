@@ -440,8 +440,11 @@ void descargarRutina() {
                 rango.desde = aMinutos(r["desde"] | "00:00");
                 rango.hasta = aMinutos(r["hasta"] | "00:00");
                 rango.confirmado = r["confirmado"] | false;  // si ya dijo "si" antes de reiniciar
-                rango.avisos = 0;
+                // si ya pregunto antes de reiniciarse, sigue la cuenta (y respeta los 45 min)
+                rango.avisos = r["avisos"] | 0;
                 rango.ultimoAvisoMs = 0;
+                if (!r["min_desde_ultimo"].isNull())
+                    rango.ultimoAvisoMs = millis() - (unsigned long)(r["min_desde_ultimo"] | 0) * 60000UL;
                 rango.cerrado = false;
                 rango.vuelta = vueltaDeRango(rango);
                 n++;
@@ -463,7 +466,7 @@ void enviarRegistroAhora(int rango, const char* respuesta) {
     http.end();
 }
 
-// Desde las pantallas: anota la respuesta de la persona (si / mas_tarde / sin_respuesta)
+// Desde las pantallas: anota que Roberto pregunto ("aviso") o la respuesta de la persona (si / mas_tarde / sin_respuesta)
 void enviarRegistro(int rango, const char* respuesta) {
     Pedido p = {"registro", rango, respuesta};
     xQueueSend(colaAcciones, &p, 0);
@@ -1238,6 +1241,7 @@ void mostrarAviso(int i) {
     ultimoAvisoGlobal = millis();
     rangos[i].avisos++;
     rangos[i].ultimoAvisoMs = millis();
+    enviarRegistro(i, "aviso");  // suma 1 en seguimiento_avisos
     sonar(SONIDO_AVISO);  // de noche no suena (ver enSilencio)
     irA(P_AVISO);
 }
