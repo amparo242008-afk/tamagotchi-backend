@@ -22,7 +22,7 @@
 //     y, segun la pantalla en la que estamos, decide que hacer.
 //   - La tarea de red (tareaRed) corre AL MISMO TIEMPO en el otro nucleo del
 //     ESP32: habla con el servidor sin trabar la pantalla.
-//   - Roberto funciona como una "maquina de estados": siempre esta en UNA
+//   - Chaca funciona como una "maquina de estados": siempre esta en UNA
 //     pantalla (pantallaActual) y irA() lo pasa a otra.
 // =====================================================================
 
@@ -75,22 +75,22 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 #define PIN_SELECT 5
 #define PIN_BACK 6
 #define PIN_BUZZER 7
-#define SONIDO_ACTIVADO true   // false = Roberto en silencio
+#define SONIDO_ACTIVADO true   // false = Chaca en silencio
 
-// Posiciones de Roberto en cada pantalla (ajustá si no quedan bien)
+// Posiciones de Chaca en cada pantalla (ajustá si no quedan bien)
 #define ROBERTO_X 60
 #define ROBERTO_Y 170
 #define ROBERTO_DORMIR_X 48
 #define ROBERTO_DORMIR_Y 130
-// Cocina: Roberto mira a la izquierda, asi que va sentado en la silla derecha
+// Cocina: Chaca mira a la izquierda, asi que se sienta en la silla derecha
 #define ROBERTO_COCINA_X 138
 #define ROBERTO_COCINA_Y 140
 #define ROBERTO_COCINA_ESCALA 4
-// La comida apoyada sobre la mesa, del lado de Roberto
+// La comida apoyada sobre la mesa, del lado de Chaca
 #define COMIDA_MESA_X 118
 #define COMIDA_MESA_Y 152
 #define COMIDA_ESCALA 2
-// Zona de la cocina que se redibuja en cada cuadro (cubre a Roberto + la comida)
+// Zona de la cocina que se redibuja en cada cuadro (cubre a Chaca + la comida)
 #define COCINA_ZONA_X 100
 #define COCINA_ZONA_Y 140
 #define COCINA_ZONA_W 110
@@ -103,7 +103,7 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 // 3. VARIABLES GLOBALES (las puede usar cualquier parte del programa)
 // =====================================================================
 
-// ---------- Stats de Roberto (0 a 100) ----------
+// ---------- Stats de Chaca (0 a 100) ----------
 // Los calcula el servidor; aca guardamos la ultima copia que nos mando.
 // volatile: los actualiza la tarea de red (otro nucleo) y los lee el loop.
 // Esa palabra le avisa al compilador que el valor puede cambiar "desde afuera"
@@ -112,7 +112,7 @@ volatile int hambreActual = 100;
 volatile int suenoActual = 100;
 volatile int dopaminaActual = 100;
 volatile bool statsNuevos = false;           // "llegaron stats, actualiza la pantalla" (lo baja el loop)
-volatile bool durmiendoServidor = false;      // el servidor dice que Roberto esta dormido
+volatile bool durmiendoServidor = false;      // el servidor dice que Chaca esta durmiendo
 volatile bool primeraConsulta = true;         // para retomar el sueno si se reinicio la placa
 bool statsRecibidos = false;                  // ya llego al menos una vez la respuesta del servidor
 volatile uint32_t intervaloConsultaMs = 60000;  // cada cuanto se piden los stats (mas seguido al dormir)
@@ -125,19 +125,19 @@ QueueHandle_t colaAcciones;
 // registro de la agenda ("registro"). dato = puntos del juego, o numero de rango.
 struct Pedido { const char* tipo; int dato; const char* respuesta; };
 
-// ---------- Agenda de Roberto (rutina.json en el servidor) ----------
-// En cada rango horario Roberto pregunta "¿ya comiste?" (o te banaste, o a dormir).
-// "Si" = la persona confirma, y Roberto lo hace con ella. "Mas tarde" = vuelve a
+// ---------- Agenda de Chaca (rutina.json en el servidor) ----------
+// En cada rango horario Chaca pregunta "¿ya comiste?" (o te banaste, o a dormir).
+// "Si" = la persona confirma, y Chaca lo hace con ella. "Mas tarde" = vuelve a
 // preguntar despues. Lo que no se contesta se anota en silencio para el acompanante.
 #define MAX_RANGOS 8
 // enum = una lista de opciones con nombre (por dentro son 0, 1, 2...)
 enum Actividad { ACT_COMIDA, ACT_HIGIENE, ACT_DORMIR };
 // struct = una "ficha" que junta varios datos. Cada rango de rutina.json
-// (desayuno, almuerzo, cena, bano, dormir) tiene su ficha, con lo que Roberto
+// (desayuno, almuerzo, cena, bano, dormir) tiene su ficha, con lo que Chaca
 // necesita recordar de ese rango HOY.
 struct Rango {
     char clave[16];
-    char pregunta[48];           // lo que dice Roberto, ej. "¿Ya almorzaste?" (de rutina.json)
+    char pregunta[48];           // lo que dice Chaca, ej. "¿Ya almorzaste?" (de rutina.json)
     Actividad actividad;
     int desde, hasta;            // minutos del dia (ej. 8:30 = 510); hasta < desde = cruza la medianoche
     bool confirmado;             // ya dijo "si" en esta vuelta del rango
@@ -151,7 +151,7 @@ int nRangos = 0;                // cuantos rangos hay de verdad (los que mando e
 // Estos valores se pisan con los de rutina.json cuando llega la agenda:
 int reinsistirMin = 45;         // cada cuanto vuelve a preguntar
 int maxAvisos = 3;              // cuantas veces como mucho por rango
-int silencioDesde = 22 * 60;     // de noche Roberto no hace ruido
+int silencioDesde = 22 * 60;     // de noche Chaca no hace ruido
 int silencioHasta = 8 * 60;
 volatile bool rutinaLista = false;
 unsigned long ultimoAvisoGlobal = 0;  // para no encadenar dos preguntas seguidas
@@ -190,7 +190,7 @@ const Comida comidas[] = {
 const int N_COMIDAS = sizeof(comidas) / sizeof(comidas[0]);  // cuantas filas tiene la tabla
 
 int cursorInfo = 0;
-// Las preguntas se escriben en preguntas.json (en el servidor) y Roberto las baja al prender.
+// Las preguntas se escriben en preguntas.json (en el servidor) y Chaca las baja al prender.
 // Estas son solo por si no hay internet. El fondo tiene lugar para 6.
 #define MAX_PREGUNTAS 6
 #define N_PREGUNTAS_FIJAS 4
@@ -202,14 +202,14 @@ int nPreguntasBajadas = 0;
 volatile bool preguntasListas = false;   // true cuando ya se bajaron del servidor
 bool infoDibujadaConBajadas = false;
 
-String respuestaActual = "";    // el texto que Roberto esta diciendo en la burbuja
+String respuestaActual = "";    // el texto que Chaca esta diciendo en la burbuja
 
 // Cocina: cuando empezo la escena y que se dibujo por ultima vez (para no repintar de mas)
 unsigned long cocinaInicio = 0;
 int frameCocinaDibujado = -1;
 int mordidasDibujadas = -1;
 
-// Principal: Roberto animado. Una animacion "especial" (saludo, festejo) dura un rato
+// Principal: Chaca animado. Una animacion "especial" (saludo, festejo) dura un rato
 // y despues vuelve al reposo, que depende de los stats.
 enum AnimPrincipal { ANIM_REPOSO, ANIM_SALUDO, ANIM_FESTEJO };
 AnimPrincipal animPrincipal = ANIM_REPOSO;
@@ -218,7 +218,7 @@ unsigned long animDuracion = 0;
 const char* const* spriteDibujado = nullptr;  // para repintar solo si cambia algo
 int faseEstrellaDibujada = -1;
 
-// Info: Roberto "habla" mientras dura la respuesta
+// Info: Chaca "habla" mientras dura la respuesta
 unsigned long hablarInicio = 0;
 unsigned long hablarDuracion = 0;
 int frameHablarDibujado = -1;
@@ -337,7 +337,7 @@ uint16_t oscurecer(uint16_t color565, float factor) {
 // asi un sprite de 24x24 con escala 5 ocupa 120x120 en la pantalla.
 // "g" puede ser la pantalla (tft) o un lienzo en memoria (GFXcanvas16).
 // colMax: solo dibuja las columnas 0..colMax-1 (sirve para "morder" la comida).
-// lado: 24 para Roberto y la comida, 16 para el corazon y la bomba.
+// lado: 24 para Chaca y la comida, 16 para el corazon y la bomba.
 // espejo: lo dibuja dado vuelta (mirando para el otro lado).
 void dibujarSpriteEn(Adafruit_GFX &g, int x, int y, const char* const* sprite,
                      const char* letras, const uint16_t* colores, int n, int escala,
@@ -354,7 +354,7 @@ void dibujarSpriteEn(Adafruit_GFX &g, int x, int y, const char* const* sprite,
     }
 }
 
-// Atajos: dibujar directo en la pantalla (Generico) o un sprite de Roberto con su paleta (dibujarSprite)
+// Atajos: dibujar directo en la pantalla (Generico) o un sprite de Chaca con su paleta (dibujarSprite)
 void dibujarSpriteGenerico(int x, int y, const char* const* sprite,
                            const char* letras, const uint16_t* colores, int n, int escala, float factor = 1.0) {
     dibujarSpriteEn(tft, x, y, sprite, letras, colores, n, escala, factor);
@@ -477,7 +477,7 @@ void consultarEstado() {
     http.end();
 }
 
-// POST /accion: avisa que Roberto comio / jugo / se durmio / se desperto.
+// POST /accion: avisa que Chaca comio / jugo / se durmio / se desperto.
 // Manda algo como {"tipo":"jugar","puntos":7} y despues pide los stats nuevos.
 void enviarAccionAhora(const char* tipo, int puntos) {
     if (WiFi.status() != WL_CONNECTED) return;
@@ -535,7 +535,7 @@ int aMinutos(const char* hhmm) {
 }
 
 // Identifica la vuelta mas reciente del rango (cuando empezo, en minutos desde 1970).
-// Cuando cambia, empezo un rango nuevo: Roberto arranca de cero.
+// Cuando cambia, empezo un rango nuevo: Chaca arranca de cero.
 long vueltaDeRango(const Rango& r) {
     long ahora = time(nullptr) / 60;
     return ahora - ((minutoDelDia() - r.desde + 1440) % 1440);
@@ -591,7 +591,7 @@ void enviarRegistroAhora(int rango, const char* respuesta) {
     http.end();
 }
 
-// Desde las pantallas: anota que Roberto pregunto ("aviso") o la respuesta de la persona (si / mas_tarde / sin_respuesta)
+// Desde las pantallas: anota que Chaca pregunto ("aviso") o la respuesta de la persona (si / mas_tarde / sin_respuesta)
 void enviarRegistro(int rango, const char* respuesta) {
     Pedido p = {"registro", rango, respuesta};
     xQueueSend(colaAcciones, &p, 0);
@@ -624,7 +624,7 @@ void tareaRed(void*) {
     }
 }
 
-// GET /respuesta/<clave>: la respuesta de Roberto a una pregunta de Info.
+// GET /respuesta/<clave>: la respuesta de Chaca a una pregunta de Info.
 // Esta SI se llama desde el loop (la pantalla espera con la burbuja "...").
 String obtenerRespuesta(const char* clave) {
     if (WiFi.status() != WL_CONNECTED) return "Sin WiFi";
@@ -650,13 +650,13 @@ String obtenerRespuesta(const char* clave) {
 // cuando algo cambia (el cursor, una animacion). Lo que pasa con los botones
 // en cada pantalla esta en loop(), en el switch de abajo de todo.
 
-// ---------- Principal (el living con Roberto) ----------
-// Zona de la principal que se repinta al animar (Roberto + la estrella del festejo)
+// ---------- Principal (el living con Chaca) ----------
+// Zona de la principal que se repinta al animar (Chaca + la estrella del festejo)
 #define PRINCIPAL_ZONA_X 50
 #define PRINCIPAL_ZONA_Y 150
 #define PRINCIPAL_ZONA_W 170
 #define PRINCIPAL_ZONA_H 140
-#define ESTADO_BAJO 30   // debajo de esto Roberto muestra hambre / sueno / aburrimiento
+#define ESTADO_BAJO 30   // debajo de esto Chaca muestra hambre / sueno / aburrimiento
 
 // Que sprite toca ahora en la principal
 const char* const* spritePrincipal() {
@@ -683,13 +683,13 @@ void empezarAnimPrincipal(AnimPrincipal anim, unsigned long duracion) {
     if (anim == ANIM_FESTEJO) sonar(SONIDO_FESTEJO);
 }
 
-// La estrella del festejo titila de un lado al otro de Roberto: fase 0 / 1, o -1 = sin estrella
+// La estrella del festejo titila de un lado al otro de Chaca: fase 0 / 1, o -1 = sin estrella
 int faseEstrella() {
     if (animPrincipal != ANIM_FESTEJO) return -1;
     return ((millis() - animInicio) / 250) % 2;
 }
 
-// Pinta Roberto (y la estrella si festeja) sobre su pedacito de fondo.
+// Pinta Chaca (y la estrella si festeja) sobre su pedacito de fondo.
 // Dentro del lienzo las coordenadas arrancan en 0, por eso se resta PRINCIPAL_ZONA_X/Y.
 void dibujarZonaPrincipal(const char* const* sprite, int fase) {
     GFXcanvas16* lienzo = empezarZona(FONDO_COLOR, FONDO_CONTEO, FONDO_RUNS, FONDO_ANCHO,
@@ -718,7 +718,7 @@ void animarPrincipal() {
     }
 }
 
-// Al entrar a la Principal: fondo completo + Roberto
+// Al entrar a la Principal: fondo completo + Chaca
 void dibujarPrincipal() {
     dibujarFondo();
     spriteDibujado = spritePrincipal();
@@ -753,7 +753,7 @@ void dibujarCirculoMenu(int i) {
     terminarZona(lienzo, zx, zy);
 }
 
-// Intentaron dormirlo con el sueno lleno: el circulo de dormir "parpadea" dos veces
+// Intentaron hacer dormir a Chaca con el sueno lleno: el circulo de dormir "parpadea" dos veces
 // con un sonidito suave, y se queda en el menu. Sin carteles ni retos.
 #define MENU_RADIO_H 36     // medio ancho de los circulos (agrandados)
 
@@ -878,9 +878,9 @@ void dibujarComida() {
     dibujarFlechaComida();
 }
 
-// ---------- Cocina (escena: Roberto come, sin botones) ----------
-// Redibuja solo la zona de Roberto + comida. mordidas: 0 = comida entera,
-// MORDIDAS = ya no queda nada. Se "come" desde el lado de Roberto (derecha).
+// ---------- Cocina (escena: Chaca come, sin botones) ----------
+// Redibuja solo la zona de Chaca + comida. mordidas: 0 = comida entera,
+// MORDIDAS = ya no queda nada. Se "come" desde el lado de Chaca (derecha).
 void dibujarZonaCocina(int frame, int mordidas) {
     GFXcanvas16* lienzo = empezarZona(FONDO_COCINA_COLOR, FONDO_COCINA_CONTEO, FONDO_COCINA_RUNS, FONDO_COCINA_ANCHO,
                                       COCINA_ZONA_X, COCINA_ZONA_Y, COCINA_ZONA_W, COCINA_ZONA_H, 1.0);
@@ -906,11 +906,11 @@ void dibujarCocina() {
     dibujarZonaCocina(0, 0);
 }
 
-// ---------- Dormir (living oscurecido, Roberto grande con Zzz) ----------
+// ---------- Dormir (living oscurecido, Chaca grande con Zzz) ----------
 #define DORMIR_ESCALA 6
 #define DORMIR_LADO (24 * DORMIR_ESCALA)
 
-// Repinta solo a Roberto durmiendo (todo con factor 0.5 = de noche)
+// Repinta solo a Chaca durmiendo (todo con factor 0.5 = de noche)
 void dibujarZonaDormir() {
     GFXcanvas16* lienzo = empezarZona(FONDO_COLOR, FONDO_CONTEO, FONDO_RUNS, FONDO_ANCHO,
                                       ROBERTO_DORMIR_X, ROBERTO_DORMIR_Y, DORMIR_LADO, DORMIR_LADO, 0.5);
@@ -997,7 +997,7 @@ void dibujarInfoMenu() {
     for (int i = 0; i < cantPreguntas(); i++) dibujarRenglonInfo(i);
 }
 
-// ---------- Info: Roberto contesta con una burbuja de dialogo ----------
+// ---------- Info: Chaca contesta con una burbuja de dialogo ----------
 #define BURBUJA_X 20
 #define BURBUJA_Y 0
 #define BURBUJA_ESCALA 8
@@ -1006,7 +1006,7 @@ void dibujarInfoMenu() {
 #define TEXTO_Y 58
 #define TEXTO_W 136
 #define TEXTO_H 68
-// Zona de Roberto en esta pantalla (no pisa la colita de la burbuja)
+// Zona de Chaca en esta pantalla (no pisa la colita de la burbuja)
 #define HABLAR_ZONA_X 60
 #define HABLAR_ZONA_Y 190
 #define HABLAR_ZONA_W 120
@@ -1089,7 +1089,7 @@ void dibujarBurbuja(const String& texto) {
     int y = TEXTO_Y + (TEXTO_H - n * alto) / 2;
     tft.cp437(true);
     tft.setTextSize(tam);
-    tft.setTextColor(PALETA_COLORES[0]);  // el gris oscuro del contorno de Roberto
+    tft.setTextColor(PALETA_COLORES[0]);  // el gris oscuro del contorno de Chaca
     for (int i = 0; i < n; i++) {
         int ancho = lineas[i].length() * 6 * tam;
         tft.setCursor(TEXTO_X + (TEXTO_W - ancho) / 2, y + i * alto);
@@ -1097,7 +1097,7 @@ void dibujarBurbuja(const String& texto) {
     }
 }
 
-// Roberto hablando: abre y cierra la boca mientras dura la respuesta, despues sonrie
+// Chaca hablando: abre y cierra la boca mientras dura la respuesta, despues sonrie
 int frameHablar() {
     if (millis() - hablarInicio > hablarDuracion) return 0;
     return ((millis() - hablarInicio) / 180) % 2 == 0 ? 1 : 0;  // boca abierta / cerrada
@@ -1112,7 +1112,7 @@ void dibujarZonaHablar(int frame) {
     terminarZona(lienzo, HABLAR_ZONA_X, HABLAR_ZONA_Y);
 }
 
-// Cuando llega la respuesta: se escribe y Roberto "la dice"
+// Cuando llega la respuesta: se escribe y Chaca "la dice"
 void decirRespuesta(const String& texto) {
     respuestaActual = texto;
     dibujarBurbuja(texto);
@@ -1128,7 +1128,7 @@ void dibujarInfoRespuesta() {
 }
 
 // ---------- Minijuego "Atrapar" ----------
-// Roberto corre por el parque atrapando corazones (+1) y esquivando bombas (-1).
+// Chaca corre por el parque atrapando corazones (+1) y esquivando bombas (-1).
 // Boton izquierdo (NAV) = izquierda, boton derecho (SELECT) = derecha,
 // boton del medio (BACK) = terminar. Sin vidas ni "game over": se juega lo que se quiera.
 #define JUEGO_FRAME_MS 33          // ~30 cuadros por segundo
@@ -1139,7 +1139,7 @@ void dibujarInfoRespuesta() {
 #define JUEGO_ROB_ESCALA 4
 #define JUEGO_ROB_LADO (24 * JUEGO_ROB_ESCALA)
 #define JUEGO_ROB_Y 208            // con los pies sobre el caminito
-#define JUEGO_ROB_VEL 7            // pixeles por cuadro que avanza Roberto
+#define JUEGO_ROB_VEL 7            // pixeles por cuadro que avanza Chaca
 #define JUEGO_ANIM_MS 90           // cada cuanto cambia el dibujo de correr (menos = piernas mas rapidas)
 #define JUEGO_ESPERA_MIN 900       // tiempo entre una cosa que cae y la siguiente (ms)
 #define JUEGO_ESPERA_MAX 1500
@@ -1186,13 +1186,13 @@ void indexarParque() {
 }
 
 // ¿Se tocan dos rectangulos? (x, y, ancho, alto de cada uno)
-// Sirve para saber si Roberto atrapo algo y que pedazo de pantalla hay que repintar.
+// Sirve para saber si Chaca atrapo algo y que pedazo de pantalla hay que repintar.
 bool seCruzan(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
     return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
 }
 
 // Repinta un rectangulo del juego con TODO lo que haya ahi (fondo, cosas que caen,
-// Roberto y contador), armado en memoria: nada parpadea aunque se encimen.
+// Chaca y contador), armado en memoria: nada parpadea aunque se encimen.
 void dibujarEscenaJuego(int rx, int ry, int rw, int rh) {
     if (rx < 0) { rw += rx; rx = 0; }
     if (ry < 0) { rh += ry; ry = 0; }
@@ -1233,7 +1233,7 @@ void dibujarEscenaJuego(int rx, int ry, int rw, int rh) {
     terminarZona(lienzo, rx, ry);
 }
 
-// Al entrar al juego: todo de cero (sin objetos, Roberto en el medio, 0 corazones)
+// Al entrar al juego: todo de cero (sin objetos, Chaca en el medio, 0 corazones)
 void dibujarJugar() {
     indexarParque();
     randomSeed(micros());
@@ -1249,14 +1249,14 @@ void dibujarJugar() {
     dibujarEscenaJuego(HUD_X, HUD_Y, HUD_W, HUD_H);
 }
 
-// Un cuadro del juego: mover a Roberto, hacer caer las cosas, ver que atrapo
+// Un cuadro del juego: mover a Chaca, hacer caer las cosas, ver que atrapo
 // Se llama ~30 veces por segundo.
 void pasoJuego() {
-    // aca NO se usa sePresiono: mientras se mantiene apretado, Roberto sigue corriendo
+    // aca NO se usa sePresiono: mientras se mantiene apretado, Chaca sigue corriendo
     bool izq = digitalRead(PIN_NAV) == LOW;
     bool der = digitalRead(PIN_SELECT) == LOW;
 
-    // Roberto
+    // Chaca
     int viejoX = robX;
     int viejoFrame = robFrame;
     bool viejoMira = robMiraDerecha;
@@ -1265,14 +1265,14 @@ void pasoJuego() {
     robX = constrain(robX, JUEGO_ROB_MIN_X, JUEGO_ROB_MAX_X);
     robFrame = (izq != der) ? (millis() / JUEGO_ANIM_MS) % N_CORRER : 0;
     if (robX != viejoX || robFrame != viejoFrame || robMiraDerecha != viejoMira) {
-        // se repinta desde donde estaba hasta donde quedo (asi se borra el Roberto viejo)
+        // se repinta desde donde estaba hasta donde quedo (asi se borra el Chaca viejo)
         int x0 = min(robX, viejoX);
         int x1 = max(robX, viejoX) + JUEGO_ROB_LADO;
         dibujarEscenaJuego(x0, JUEGO_ROB_Y, x1 - x0, JUEGO_ROB_LADO);
     }
 
     // Lo que cae
-    int cuerpoX = robX + 5 * JUEGO_ROB_ESCALA;   // la "caja" del cuerpo de Roberto
+    int cuerpoX = robX + 5 * JUEGO_ROB_ESCALA;   // la "caja" del cuerpo de Chaca
     int cuerpoY = JUEGO_ROB_Y + 6 * JUEGO_ROB_ESCALA;
     int cuerpoW = 12 * JUEGO_ROB_ESCALA;
     int cuerpoH = 16 * JUEGO_ROB_ESCALA;
@@ -1345,12 +1345,12 @@ void dibujarJugarFin() {
     sonar(SONIDO_FESTEJO);
 }
 
-// ---------- Agenda: Roberto pregunta "¿ya comiste?" ----------
-// Pantalla: el living, la burbuja con la pregunta (ej. "¿Ya almorzaste?"), Roberto abajo,
+// ---------- Agenda: Chaca pregunta "¿ya comiste?" ----------
+// Pantalla: el living, la burbuja con la pregunta (ej. "¿Ya almorzaste?"), Chaca abajo,
 // y dos plaquitas: "Si" / "Mas tarde". Sin texto de reproche.
 #define AVISO_OPC_Y 292
 #define AVISO_OPC_H 24
-#define AVISO_TIMEOUT_MS 60000UL   // si nadie contesta en 1 minuto, Roberto vuelve a lo suyo
+#define AVISO_TIMEOUT_MS 60000UL   // si nadie contesta en 1 minuto, Chaca vuelve a lo suyo
 const int avisoOpcX[2] = {20, 96};
 const int avisoOpcW[2] = {66, 130};
 const char* const avisoOpcTexto[2] = {"S\xA1", "M\xA0s tarde"};  // \xA1 = i con tilde, \xA0 = a con tilde
@@ -1378,7 +1378,7 @@ void dibujarOpcionAviso(int i) {
     terminarZona(lienzo, avisoOpcX[i], AVISO_OPC_Y);
 }
 
-// Lo que pregunta Roberto: el texto de rutina.json, o uno general si no tiene
+// Lo que pregunta Chaca: el texto de rutina.json, o uno general si no tiene
 const char* textoAviso(const Rango& r) {
     if (r.pregunta[0]) return r.pregunta;
     if (r.actividad == ACT_COMIDA) return "¿Ya comiste?";
@@ -1386,7 +1386,7 @@ const char* textoAviso(const Rango& r) {
     return "¿Te bañaste?";
 }
 
-// Pantalla completa de la pregunta: Roberto la dice con la burbuja, como en Info
+// Pantalla completa de la pregunta: Chaca la dice con la burbuja, como en Info
 void dibujarAviso() {
     Rango& r = rangos[rangoAviso];  // & = "r" es el mismo rango, no una copia
     dibujarFondo();
@@ -1398,7 +1398,7 @@ void dibujarAviso() {
     dibujarZonaHablar(frameHablarDibujado);
 }
 
-// Roberto pregunta por el rango i: anota que pregunto y abre la pantalla del aviso
+// Chaca pregunta por el rango i: anota que pregunto y abre la pantalla del aviso
 void mostrarAviso(int i) {
     rangoAviso = i;
     cursorAviso = 0;
@@ -1411,13 +1411,13 @@ void mostrarAviso(int i) {
     irA(P_AVISO);
 }
 
-// "Si": la persona lo hizo. Roberto lo hace con ella.
+// "Si": la persona lo hizo. Chaca lo hace con ella.
 void responderSi() {
     Rango& r = rangos[rangoAviso];
     r.confirmado = true;
     enviarRegistro(rangoAviso, "si");
     if (r.actividad == ACT_COMIDA) {
-        irA(P_COMIDA);  // comen juntos: se elige la comida y Roberto va a la cocina
+        irA(P_COMIDA);  // comen juntos: se elige la comida y Chaca va a la cocina
     } else if (r.actividad == ACT_DORMIR && suenoActual < 100) {
         enviarAccion("dormir");
         irA(P_DORMIR);
@@ -1429,7 +1429,7 @@ void responderSi() {
     }
 }
 
-// "Mas tarde": sin problema. Roberto saluda y vuelve a preguntar despues.
+// "Mas tarde": sin problema. Chaca saluda y vuelve a preguntar despues.
 void responderMasTarde() {
     enviarRegistro(rangoAviso, "mas_tarde");
     empezarAnimPrincipal(ANIM_SALUDO, 1200);
@@ -1438,7 +1438,7 @@ void responderMasTarde() {
 
 // Se llama desde el loop una vez por segundo: ¿toca preguntar algo?
 // Parte 1: pone al dia las fichas de todos los rangos (dia nuevo, rango terminado).
-// Parte 2: si Roberto esta tranquilo, busca el primer rango que necesite preguntar.
+// Parte 2: si Chaca esta tranquilo, busca el primer rango que necesite preguntar.
 void revisarAgenda() {
     if (!rutinaLista || !horaLista()) return;
     int m = minutoDelDia();
@@ -1458,7 +1458,7 @@ void revisarAgenda() {
             enviarRegistro(i, "sin_respuesta");
         }
     }
-    // solo se pregunta con Roberto tranquilo en la pantalla principal
+    // solo se pregunta con Chaca tranquilo en la pantalla principal
     if (pantallaActual != P_PRINCIPAL || animPrincipal != ANIM_REPOSO) return;
     // y nunca dos preguntas seguidas: al menos 2 minutos entre una y otra
     if (ultimoAvisoGlobal != 0 && millis() - ultimoAvisoGlobal < 2 * 60000UL) return;
@@ -1473,11 +1473,11 @@ void revisarAgenda() {
     }
 }
 
-// ---------- Bienvenida: Roberto saluda afuera y entra a la casa ----------
-// Al prender, Roberto esta en la loma saludando. Con cualquier boton sale
+// ---------- Bienvenida: Chaca saluda afuera y entra a la casa ----------
+// Al prender, Chaca esta en la loma saludando. Con cualquier boton sale
 // corriendo hacia la derecha (entra a la casa) y aparece el living.
 #define BIENV_ROB_Y 150
-#define BIENV_ROB_LADO (24 * 5)        // Roberto con escala 5 = 120 px
+#define BIENV_ROB_LADO (24 * 5)        // Chaca con escala 5 = 120 px
 #define BIENV_ROB_VEL 8                // pixeles por cuadro al correr
 #define BIENV_PLACA_X 60               // plaquita "Entrar" (mismo estilo que el aviso)
 #define BIENV_PLACA_Y 284
@@ -1490,13 +1490,13 @@ const char* const* bienvSpriteDibujado = nullptr;
 int bienvFlechaDibujada = -1;
 unsigned long bienvUltimoPaso = 0;
 
-// Que dibujo de Roberto toca: saludando (quieto) o corriendo
+// Que dibujo de Chaca toca: saludando (quieto) o corriendo
 const char* const* spriteBienvenida() {
     if (bienvEntrando) return SPR_CORRER[(millis() / 90) % N_CORRER];
     return SPR_SALUDO[(millis() / 300) % N_SALUDO];
 }
 
-// Repinta la franja de Roberto desde x0, de ancho w (recortada a la pantalla)
+// Repinta la franja de Chaca desde x0, de ancho w (recortada a la pantalla)
 void dibujarZonaBienvenida(int x0, int w) {
     if (x0 < 0) { w += x0; x0 = 0; }
     if (x0 + w > 240) w = 240 - x0;
@@ -1569,16 +1569,16 @@ void animarBienvenida(bool boton) {
     int viejoX = bienvRobX;
     bienvRobX += BIENV_ROB_VEL;
     bienvSpriteDibujado = spriteBienvenida();
-    // se repinta desde donde estaba hasta donde quedo (asi se borra el Roberto viejo)
+    // se repinta desde donde estaba hasta donde quedo (asi se borra el Chaca viejo)
     dibujarZonaBienvenida(viejoX, bienvRobX - viejoX + BIENV_ROB_LADO);
     if (bienvRobX > 240) irA(P_PRINCIPAL);  // ya entro: aparece el living
 }
 
-// ---------- Bano: Roberto se bana ----------
+// ---------- Bano: Chaca se bana ----------
 // Se llega desde el menu (circulo de la banadera) o desde el "Si" del aviso de higiene.
-// Roberto (SPR_BANO, sin banadera propia) va metido en la banadera del fondo:
+// Chaca (SPR_BANO, sin banadera propia) va adentro de la banadera del fondo:
 // alternando los dos dibujos (las gotitas de agua se mueven).
-#define BANO_ROB_X 85                  // sentado adentro de la banadera del fondo
+#define BANO_ROB_X 85                  // adentro de la banadera del fondo
 #define BANO_ROB_Y 100
 #define BANO_ROB_ESCALA 5
 #define BANO_ROB_LADO (24 * BANO_ROB_ESCALA)
@@ -1653,12 +1653,12 @@ void setup() {
     tft.setTextSize(2);
     tft.setTextColor(ILI9341_WHITE);
     tft.setCursor(10, 10);
-    tft.println("Iniciando Roberto...");
+    tft.println("Iniciando Chaca...");
 
-    irA(P_BIENVENIDA);  // Roberto saluda afuera y espera que aprieten un boton para entrar
+    irA(P_BIENVENIDA);  // Chaca saluda afuera y espera que aprieten un boton para entrar
     WiFi.begin(ssid, password);  // empieza a conectar, pero no espera (eso lo hace la tarea de red)
 
-    // La red corre aparte (nucleo 0): Roberto ya se puede usar mientras conecta.
+    // La red corre aparte (nucleo 0): Chaca ya se puede usar mientras conecta.
     // Prioridad 0 (la mas baja): el cifrado HTTPS tarda varios segundos y si no
     // deja descansar al nucleo 0, el "watchdog" cree que se colgo y reinicia la placa.
     // Cola con lugar para 8 pedidos. Despues se lanza tareaRed: 16384 bytes de memoria
@@ -1686,7 +1686,7 @@ void loop() {
         statsRecibidos = true;
         // en la principal no hace falta: animarPrincipal() ya elige el sprite segun los stats
     }
-    // si la placa se reinicio mientras Roberto dormia, vuelve a la cama.
+    // si la placa se reinicio mientras Chaca dormia, vuelve a la cama.
     // Se espera a que entre a la casa (si los stats llegaron durante la bienvenida, se revisa al entrar).
     if (primeraConsulta && statsRecibidos && pantallaActual == P_PRINCIPAL) {
         primeraConsulta = false;
@@ -1768,7 +1768,7 @@ void loop() {
                 ultimoCambioDormir = millis();
                 dibujarZonaDormir();
             }
-            // cualquier boton lo despierta, y se despierta solo cuando el sueno llega a 100
+            // cualquier boton despierta a Chaca, y se despierta sin ayuda cuando el sueno llega a 100
             if (sel || nav || back || suenoActual >= 100) despertar();
             break;
 
@@ -1797,7 +1797,7 @@ void loop() {
             } else if (back) {
                 responderMasTarde();
             } else if (millis() - avisoInicio > AVISO_TIMEOUT_MS) {
-                irA(P_PRINCIPAL);  // nadie contesto: Roberto vuelve a lo suyo, sin anotar nada
+                irA(P_PRINCIPAL);  // nadie contesto: Chaca vuelve a lo suyo, sin anotar nada
             }
             break;
         }
@@ -1822,7 +1822,7 @@ void loop() {
         }
 
         case P_JUGAR_FIN:
-            // cualquier boton: los corazones van a la dopamina y Roberto vuelve festejando
+            // cualquier boton: los corazones van a la dopamina y Chaca vuelve festejando
             if (sel || nav || back) {
                 enviarAccion("jugar", corazones);
                 empezarAnimPrincipal(ANIM_FESTEJO, 1500);
@@ -1841,7 +1841,7 @@ void loop() {
             }
             if (back) irA(P_MENU);
             if (sel) {
-                // primero Roberto con la burbuja "..." (pensando), despues la respuesta
+                // primero Chaca con la burbuja "..." (pensando), despues la respuesta
                 respuestaActual = "...";
                 hablarDuracion = 0;
                 irA(P_INFO_RESPUESTA);

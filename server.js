@@ -1,16 +1,16 @@
 // server.js - Backend del Tamagotchi
 // Node.js + Express + PostgreSQL
 //
-// Qué es esto: un programa que corre en Render (en internet) y le contesta a Roberto.
-// Roberto le pide cosas a una dirección (ej. GET /estado) y el servidor contesta en JSON.
+// Qué es esto: un programa que corre en Render (en internet) y le contesta a Chaca.
+// Chaca le pide cosas a una dirección (ej. GET /estado) y el servidor contesta en JSON.
 // Los datos quedan guardados en una base de datos Postgres (tablas, como en Excel).
 //
 // Índice:
 //   1. Conexión a Postgres
 //   2. Configuración (qué tan rápido bajan los stats)
 //   3. calcularEstadoActual: cuánto bajó cada stat desde la última vez
-//   4. GET  /estado          -> los stats de Roberto ahora
-//   5. POST /accion          -> Roberto comió / jugó / se durmió / se despertó
+//   4. GET  /estado          -> los stats de Chaca ahora
+//   5. POST /accion          -> Chaca comió / jugó / se durmió / se despertó
 //   6. GET  /respuesta/:clave y GET /preguntas -> las preguntas de Info
 //   6c. GET /rutina y POST /registro -> la agenda (avisos de comer, bañarse, dormir)
 //   7. prepararBase y arranque del servidor
@@ -18,7 +18,7 @@
 // Cómo se lee un "endpoint":  app.get('/estado', async (req, res) => { ... })
 //   - app.get / app.post: a qué tipo de pedido contesta (GET = traer, POST = mandar algo)
 //   - '/estado': la dirección
-//   - req (request): lo que mandó Roberto (req.body = los datos del POST)
+//   - req (request): lo que mandó Chaca (req.body = los datos del POST)
 //   - res (response): la contestación; res.json({...}) la manda
 //   - async / await: esperar a la base de datos sin trabar el servidor
 //   - try / catch: si algo falla, se contesta un error 500 en vez de que se caiga todo
@@ -58,7 +58,7 @@ const pool = new Pool(
 // 2. CONFIGURACIÓN DE DECAIMIENTO
 // ---------------------------------------------
 // MODO_DEMO = true: todo pasa rápido, para mostrar en la defensa o para probar.
-// MODO_DEMO = false: ritmo tranquilo de uso diario, así Roberto no está siempre triste.
+// MODO_DEMO = false: ritmo tranquilo de uso diario, así Chaca no está siempre triste.
 const MODO_DEMO = false;
 
 // Cuántos puntos baja cada stat por minuto que pasa
@@ -66,7 +66,7 @@ const DECAIMIENTO_POR_MINUTO = MODO_DEMO
     ? { hambre: 1, sueno: 0.5, dopamina: 1.5 }       // hambre de 100 a 0 en ~1,5 h
     : { hambre: 0.2, sueno: 0.1, dopamina: 0.2 };    // hambre de 100 a 0 en ~8 h, sueño en ~16 h
 
-// Mientras Roberto duerme, el sueño SUBE (en vez de bajar) a este ritmo.
+// Mientras Chaca duerme, el sueño SUBE (en vez de bajar) a este ritmo.
 // Demo: de 0 a 100 en 10 minutos. Real: en unas 6 horas (una noche).
 const RECUPERACION_SUENO_POR_MINUTO = MODO_DEMO ? 10 : 0.3;
 
@@ -145,8 +145,8 @@ app.get('/estado', async (req, res) => {
 // ---------------------------------------------
 // Body esperado: { "tipo": "alimentar" | "jugar" | "dormir" | "despertar" | "banar" }
 // - alimentar / jugar: suben su stat de una.
-// - dormir: Roberto se acuesta; el sueño va subiendo con el tiempo (ver calcularEstadoActual).
-// - despertar: Roberto se levanta; el sueño vuelve a bajar normal.
+// - dormir: Chaca se acuesta; el sueño va subiendo con el tiempo (ver calcularEstadoActual).
+// - despertar: Chaca se levanta; el sueño vuelve a bajar normal.
 app.post('/accion', async (req, res) => {
     const { tipo } = req.body;
 
@@ -238,7 +238,7 @@ app.get('/respuesta/:clave', async (req, res) => {
 // ---------------------------------------------
 // 6b. ENDPOINT: GET /preguntas
 // ---------------------------------------------
-// La lista de preguntas que muestra Roberto en Info, en orden: [{ clave, pregunta }]
+// La lista de preguntas que muestra Chaca en Info, en orden: [{ clave, pregunta }]
 app.get('/preguntas', async (req, res) => {
     try {
         const result = await pool.query(
@@ -254,7 +254,7 @@ app.get('/preguntas', async (req, res) => {
 // ---------------------------------------------
 // 6c. AGENDA DE ROBERTO: GET /rutina y POST /registro
 // ---------------------------------------------
-// Los rangos horarios se escriben en rutina.json. Roberto pregunta en cada rango
+// Los rangos horarios se escriben en rutina.json. Chaca pregunta en cada rango
 // ("¿ya comiste?") y la persona contesta con un botón. Eso queda en historial_acciones
 // para el panel del acompañante. La persona nunca ve lo que no hizo.
 
@@ -292,7 +292,7 @@ function leerRutina() {
     return require('./rutina.json');
 }
 
-// GET /rutina: Roberto la pide al prender. Le devuelve rutina.json y, para cada rango,
+// GET /rutina: Chaca la pide al prender. Le devuelve rutina.json y, para cada rango,
 // lo que ya pasó hoy (si ya dijo "sí", cuántas veces preguntó y hace cuánto).
 app.get('/rutina', async (req, res) => {
     try {
@@ -333,7 +333,7 @@ app.get('/rutina', async (req, res) => {
 });
 
 // Body: { "clave": "almuerzo", "respuesta": "aviso" | "si" | "mas_tarde" | "sin_respuesta" }
-// "aviso" = Roberto acaba de preguntar (no va al historial, solo suma en seguimiento_avisos).
+// "aviso" = Chaca acaba de preguntar (no va al historial, solo suma en seguimiento_avisos).
 app.post('/registro', async (req, res) => {
     const { clave, respuesta } = req.body;
     const prefijos = { si: 'confirmo', mas_tarde: 'posterga', sin_respuesta: 'sin_respuesta' };
@@ -412,6 +412,8 @@ async function prepararBase() {
     );
     await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS pregunta TEXT');
     await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS orden INTEGER NOT NULL DEFAULT 0');
+    // La mascota se llama Chaca (antes Roberto): nombre sin género
+    await pool.query("UPDATE estado_mascota SET nombre = 'Chaca' WHERE id = 1");
     await cargarPreguntas();
 }
 

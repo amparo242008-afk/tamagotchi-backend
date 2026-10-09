@@ -4,7 +4,7 @@
 # Uso (desde la carpeta Tamagotchi-Wokwi):
 #   python herramientas/png_a_sprite.py imagenes/robertocorriendo1.png imagenes/robertocorriendo2.png
 #
-# - Si todos los colores son de Roberto, usa su paleta (PALETA_LETRAS de sprites.h).
+# - Si todos los colores son de Chaca, usa su paleta (PALETA_LETRAS de sprites.h).
 # - Si no, arma una paleta propia para ese sprite (PALETA_<NOMBRE>), como en comida.h.
 # Imprime el codigo C: se copia y se pega en el .h que corresponda (carpeta sprites/).
 import os
@@ -13,7 +13,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from png_a_rle import leer_png, a565  # noqa: E402
 
-# Paleta de Roberto: tiene que coincidir con PALETA_LETRAS / PALETA_COLORES de sprites.h
+# Paleta de Chaca: tiene que coincidir con PALETA_LETRAS / PALETA_COLORES de sprites.h
 PALETA_ROBERTO = {0x2966: 'A', 0xFDD7: 'B', 0xDDC7: 'C', 0x4E7E: 'D', 0xFFFF: 'E', 0xD4B2: 'F'}
 LADO = 24
 
@@ -41,10 +41,10 @@ def main():
         # todos los colores distintos que usa el dibujo
         colores = {a565(*p) for fila in pixeles for p in fila if p is not None}
         nombre = nombre_c(ruta)
-        # <= entre conjuntos = "estan todos incluidos en": si solo usa colores de Roberto
+        # <= entre conjuntos = "estan todos incluidos en": si solo usa colores de Chaca
         if colores <= set(PALETA_ROBERTO):
             letras = PALETA_ROBERTO
-            print(f'// {nombre} (paleta de Roberto)')
+            print(f'// {nombre} (paleta de Chaca)')
         else:
             # paleta nueva: a cada color se le da una letra (A, B, C...)
             letras = {c: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[i] for i, c in enumerate(sorted(colores))}

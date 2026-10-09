@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS historial_acciones (
     clave TEXT  -- de qué rango de la agenda es (ej. "almuerzo"); vacío en las acciones del juguete
 );
 
--- Cuántas veces preguntó Roberto en cada rango de la agenda, por día.
+-- Cuántas veces preguntó Chaca en cada rango de la agenda, por día.
 -- cantidad_insistencias = 3 y completado = false: se avisó el máximo y no hubo "sí".
 CREATE TABLE IF NOT EXISTS seguimiento_avisos (
     id                    SERIAL PRIMARY KEY,
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS respuestas_fijas (
 
 -- Mascota inicial (id = 1, que es la que leen los endpoints)
 INSERT INTO estado_mascota (id, nombre, hambre, sueno, dopamina)
-VALUES (1, 'Roberto', 100, 100, 100)
+VALUES (1, 'Chaca', 100, 100, 100)
 ON CONFLICT (id) DO NOTHING;
 
 -- Las preguntas y respuestas ya no van aca: se editan en preguntas.json

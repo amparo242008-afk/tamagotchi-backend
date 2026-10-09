@@ -1,4 +1,4 @@
-// sprites.h - Sprites de Roberto (Palito, paleta actualizada), 24x24
+// sprites.h - Sprites de Chaca (Palito, paleta actualizada), 24x24
 #pragma once
 #include <Arduino.h>
 
@@ -264,7 +264,7 @@ const char* const spr_dormir1[SPR_H] = {
 };
 
 // ---- Sprites nuevos (convertidos con herramientas/png_a_sprite.py) ----
-// robertocorriendo1 (paleta de Roberto)
+// robertocorriendo1 (paleta de Chaca)
 const char* const spr_robertocorriendo1[SPR_H] = {
   "........................",
   "........................",
@@ -292,7 +292,7 @@ const char* const spr_robertocorriendo1[SPR_H] = {
   "........................",
 };
 
-// robertocorriendo2 (paleta de Roberto)
+// robertocorriendo2 (paleta de Chaca)
 const char* const spr_robertocorriendo2[SPR_H] = {
   "........................",
   "........................",
@@ -320,7 +320,7 @@ const char* const spr_robertocorriendo2[SPR_H] = {
   "........................",
 };
 
-// robertofestejo (paleta de Roberto)
+// robertofestejo (paleta de Chaca)
 const char* const spr_robertofestejo[SPR_H] = {
   "........................",
   "........................",
@@ -348,7 +348,7 @@ const char* const spr_robertofestejo[SPR_H] = {
   "........................",
 };
 
-// robertohablando1 (paleta de Roberto)
+// robertohablando1 (paleta de Chaca)
 const char* const spr_robertohablando1[SPR_H] = {
   "........................",
   "........................",
@@ -376,7 +376,7 @@ const char* const spr_robertohablando1[SPR_H] = {
   "........................",
 };
 
-// robertohablando3 (paleta de Roberto)
+// robertohablando3 (paleta de Chaca)
 const char* const spr_robertohablando3[SPR_H] = {
   "........................",
   "........................",
@@ -404,7 +404,7 @@ const char* const spr_robertohablando3[SPR_H] = {
   "........................",
 };
 
-// robertosaludo1 (paleta de Roberto)
+// robertosaludo1 (paleta de Chaca)
 const char* const spr_robertosaludo1[SPR_H] = {
   "........................",
   "........................",
@@ -432,7 +432,7 @@ const char* const spr_robertosaludo1[SPR_H] = {
   "........................",
 };
 
-// robertosaludo2 (paleta de Roberto)
+// robertosaludo2 (paleta de Chaca)
 const char* const spr_robertosaludo2[SPR_H] = {
   "........................",
   "........................",
@@ -460,7 +460,7 @@ const char* const spr_robertosaludo2[SPR_H] = {
   "........................",
 };
 
-// robertoaburrido (paleta de Roberto)
+// robertoaburrido (paleta de Chaca)
 const char* const spr_robertoaburrido[SPR_H] = {
   "........................",
   "........................",
@@ -488,7 +488,7 @@ const char* const spr_robertoaburrido[SPR_H] = {
   "........................",
 };
 
-// robertobostesando (paleta de Roberto)
+// robertobostesando (paleta de Chaca)
 const char* const spr_robertobostesando[SPR_H] = {
   "........................",
   "........................",
@@ -539,7 +539,7 @@ const char* const* const SPR_ABURRIDO[] = {spr_robertoaburrido};
 const char* const* const SPR_BOSTEZO[] = {spr_robertobostesando};
 #define N_BOSTEZO 1
 
-// Roberto en la banadera del fondo del bano: se le saco la banadera propia,
+// Chaca en la banadera del fondo del bano: se le saco la banadera propia,
 // quedan el cuerpo hasta la cintura, las gotitas y la espuma (filas de abajo).
 // Paleta propia: tiene el agua y la banadera. Los dos dibujos usan la misma.
 const char PALETA_BANO[] = "ABCDEFGH";
