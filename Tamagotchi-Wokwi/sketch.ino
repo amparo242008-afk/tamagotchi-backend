@@ -130,6 +130,7 @@ struct Pedido { const char* tipo; int dato; const char* respuesta; };
 // "Si" = la persona confirma, y Chaca lo hace con ella. "Mas tarde" = vuelve a
 // preguntar despues. Lo que no se contesta se anota en silencio para el acompanante.
 #define MAX_RANGOS 8
+#define MAX_MICRO 4
 // enum = una lista de opciones con nombre (por dentro son 0, 1, 2...)
 enum Actividad { ACT_COMIDA, ACT_HIGIENE, ACT_DORMIR };
 // struct = una "ficha" que junta varios datos. Cada rango de rutina.json
@@ -140,7 +141,10 @@ struct Rango {
     char pregunta[48];           // lo que dice Chaca, ej. "¿Ya almorzaste?" (de rutina.json)
     Actividad actividad;
     int desde, hasta;            // minutos del dia (ej. 8:30 = 510); hasta < desde = cruza la medianoche
+    char micro[MAX_MICRO][48];   // micro-tareas: preguntas mas chicas para despues del primer "Mas tarde"
+    int nMicro;
     bool confirmado;             // ya dijo "si" en esta vuelta del rango
+    bool paso;                   // dijo "Hoy paso": no se vuelve a preguntar hasta manana
     int avisos;                  // cuantas veces pregunto en esta vuelta
     unsigned long ultimoAvisoMs; // cuando pregunto la ultima vez (millis = ms desde que prendio)
     bool cerrado;               // ya se anoto "sin respuesta"
@@ -564,13 +568,19 @@ void descargarRutina() {
                                 : strcmp(act, "higiene") == 0 ? ACT_HIGIENE : ACT_COMIDA;
                 rango.desde = aMinutos(r["desde"] | "00:00");
                 rango.hasta = aMinutos(r["hasta"] | "00:00");
+                rango.nMicro = 0;
+                for (const char* m : r["micro"].as<JsonArray>()) {
+                    if (rango.nMicro >= MAX_MICRO) break;
+                    strlcpy(rango.micro[rango.nMicro++], m ? m : "", sizeof(rango.micro[0]));
+                }
                 rango.confirmado = r["confirmado"] | false;  // si ya dijo "si" antes de reiniciar
+                rango.paso = r["paso"] | false;              // o si ya dijo "Hoy paso"
                 // si ya pregunto antes de reiniciarse, sigue la cuenta (y respeta los 45 min)
                 rango.avisos = r["avisos"] | 0;
                 rango.ultimoAvisoMs = 0;
                 if (!r["min_desde_ultimo"].isNull())
                     rango.ultimoAvisoMs = millis() - (unsigned long)(r["min_desde_ultimo"] | 0) * 60000UL;
-                rango.cerrado = false;
+                rango.cerrado = rango.paso;   // con "Hoy paso" tampoco se anota "sin respuesta"
                 rango.vuelta = vueltaDeRango(rango);
                 n++;
             }
@@ -1103,13 +1113,21 @@ int frameHablar() {
     return ((millis() - hablarInicio) / 180) % 2 == 0 ? 1 : 0;  // boca abierta / cerrada
 }
 
+// En el aviso Chaca va mas a la izquierda, para dejar lugar a las 3 opciones a la derecha
+#define AVISO_ROB_X 0
+#define AVISO_ZONA_W 104
+
 void dibujarZonaHablar(int frame) {
+    bool enAviso = (pantallaActual == P_AVISO);
+    int zonaX = enAviso ? 0 : HABLAR_ZONA_X;
+    int zonaW = enAviso ? AVISO_ZONA_W : HABLAR_ZONA_W;
+    int robX = enAviso ? AVISO_ROB_X : ROBERTO_X;
     GFXcanvas16* lienzo = empezarZona(FONDO_COLOR, FONDO_CONTEO, FONDO_RUNS, FONDO_ANCHO,
-                                      HABLAR_ZONA_X, HABLAR_ZONA_Y, HABLAR_ZONA_W, HABLAR_ZONA_H, 1.0);
+                                      zonaX, HABLAR_ZONA_Y, zonaW, HABLAR_ZONA_H, 1.0);
     if (!lienzo) return;
-    dibujarSpriteEn(*lienzo, ROBERTO_X - HABLAR_ZONA_X, ROBERTO_Y - HABLAR_ZONA_Y, SPR_HABLAR[frame],
+    dibujarSpriteEn(*lienzo, robX - zonaX, ROBERTO_Y - HABLAR_ZONA_Y, SPR_HABLAR[frame],
                     PALETA_LETRAS, PALETA_COLORES, PALETA_N, 5);
-    terminarZona(lienzo, HABLAR_ZONA_X, HABLAR_ZONA_Y);
+    terminarZona(lienzo, zonaX, HABLAR_ZONA_Y);
 }
 
 // Cuando llega la respuesta: se escribe y Chaca "la dice"
@@ -1346,24 +1364,31 @@ void dibujarJugarFin() {
 }
 
 // ---------- Agenda: Chaca pregunta "¿ya comiste?" ----------
-// Pantalla: el living, la burbuja con la pregunta (ej. "¿Ya almorzaste?"), Chaca abajo,
-// y dos plaquitas: "Si" / "Mas tarde". Sin texto de reproche.
-#define AVISO_OPC_Y 292
+// Pantalla: el living, la burbuja con la pregunta (ej. "¿Ya almorzaste?"), Chaca abajo
+// a la izquierda, y tres plaquitas a la derecha: "Si" / "Mas tarde" / "Hoy paso".
+// Sin texto de reproche: "Hoy paso" es una respuesta valida, no un fracaso.
+#define N_OPC_AVISO 3
+#define AVISO_OPC_X 104
+#define AVISO_OPC_W 132
+#define AVISO_OPC_Y 196            // la primera plaquita; las otras van debajo
+#define AVISO_OPC_PASO 32          // distancia entre una plaquita y la siguiente
 #define AVISO_OPC_H 24
 #define AVISO_TIMEOUT_MS 60000UL   // si nadie contesta en 1 minuto, Chaca vuelve a lo suyo
-const int avisoOpcX[2] = {20, 96};
-const int avisoOpcW[2] = {66, 130};
-const char* const avisoOpcTexto[2] = {"S\xA1", "M\xA0s tarde"};  // \xA1 = i con tilde, \xA0 = a con tilde
+enum OpcionAviso { OPC_SI, OPC_MAS_TARDE, OPC_HOY_PASO };
+const char* const avisoOpcTexto[N_OPC_AVISO] = {"S\xA1", "M\xA0s tarde", "Hoy paso"};  // \xA1 = i con tilde, \xA0 = a con tilde
+const char* avisoTexto = "";       // lo que pregunta Chaca ahora (la pregunta normal o una micro-tarea)
+bool avisoEsMicro = false;         // true = esta vez pregunta una micro-tarea
 
-// Una plaquita ("Si" o "Mas tarde"), con flechita si es la elegida
+// Una plaquita, con flechita si es la elegida
 void dibujarOpcionAviso(int i) {
+    int y = AVISO_OPC_Y + i * AVISO_OPC_PASO;
     GFXcanvas16* lienzo = empezarZona(FONDO_COLOR, FONDO_CONTEO, FONDO_RUNS, FONDO_ANCHO,
-                                      avisoOpcX[i], AVISO_OPC_Y, avisoOpcW[i], AVISO_OPC_H, 1.0);
+                                      AVISO_OPC_X, y, AVISO_OPC_W, AVISO_OPC_H, 1.0);
     if (!lienzo) return;
     uint16_t borde = tft.color565(235, 203, 118);
     uint16_t amarillo = tft.color565(248, 231, 121);
     uint16_t naranja = tft.color565(235, 152, 102);
-    int w = avisoOpcW[i];
+    int w = AVISO_OPC_W;
     lienzo->fillRect(0, 0, w, AVISO_OPC_H, borde);
     lienzo->fillRect(2, 2, w - 4, AVISO_OPC_H - 4, amarillo);
     if (i == cursorAviso) {
@@ -1375,7 +1400,7 @@ void dibujarOpcionAviso(int i) {
     lienzo->setTextColor(naranja);
     lienzo->setCursor(20, 5);
     lienzo->print(avisoOpcTexto[i]);
-    terminarZona(lienzo, avisoOpcX[i], AVISO_OPC_Y);
+    terminarZona(lienzo, AVISO_OPC_X, y);
 }
 
 // Lo que pregunta Chaca: el texto de rutina.json, o uno general si no tiene
@@ -1388,10 +1413,9 @@ const char* textoAviso(const Rango& r) {
 
 // Pantalla completa de la pregunta: Chaca la dice con la burbuja, como en Info
 void dibujarAviso() {
-    Rango& r = rangos[rangoAviso];  // & = "r" es el mismo rango, no una copia
     dibujarFondo();
-    dibujarBurbuja(textoAviso(r));  // dibuja la burbuja y el texto centrado (pasa las tildes a la pantalla)
-    for (int i = 0; i < 2; i++) dibujarOpcionAviso(i);
+    dibujarBurbuja(avisoTexto);  // dibuja la burbuja y el texto centrado (pasa las tildes a la pantalla)
+    for (int i = 0; i < N_OPC_AVISO; i++) dibujarOpcionAviso(i);
     hablarInicio = millis();
     hablarDuracion = 1200;
     frameHablarDibujado = frameHablar();
@@ -1404,6 +1428,11 @@ void mostrarAviso(int i) {
     cursorAviso = 0;
     avisoInicio = millis();
     ultimoAvisoGlobal = millis();
+    // La primera vez, la pregunta normal. Si ya pregunto antes (o sea, le dijeron "Mas tarde")
+    // y el rango tiene micro-tareas, propone una mas chica, elegida al azar.
+    Rango& r = rangos[i];
+    avisoEsMicro = (r.avisos > 0 && r.nMicro > 0);
+    avisoTexto = avisoEsMicro ? r.micro[random(r.nMicro)] : textoAviso(r);
     rangos[i].avisos++;
     rangos[i].ultimoAvisoMs = millis();
     enviarRegistro(i, "aviso");  // suma 1 en seguimiento_avisos
@@ -1412,10 +1441,11 @@ void mostrarAviso(int i) {
 }
 
 // "Si": la persona lo hizo. Chaca lo hace con ella.
+// Una micro-tarea cumplida cuenta igual que la tarea completa, y Chaca festeja igual.
 void responderSi() {
     Rango& r = rangos[rangoAviso];
     r.confirmado = true;
-    enviarRegistro(rangoAviso, "si");
+    enviarRegistro(rangoAviso, avisoEsMicro ? "si_micro" : "si");
     if (r.actividad == ACT_COMIDA) {
         irA(P_COMIDA);  // comen juntos: se elige la comida y Chaca va a la cocina
     } else if (r.actividad == ACT_DORMIR && suenoActual < 100) {
@@ -1436,6 +1466,16 @@ void responderMasTarde() {
     irA(P_PRINCIPAL);
 }
 
+// "Hoy paso": esta bien. Chaca saluda y no vuelve a preguntar por esto hasta manana.
+void responderHoyPaso() {
+    Rango& r = rangos[rangoAviso];
+    r.paso = true;
+    r.cerrado = true;  // tampoco se anota "sin respuesta": la persona si respondio
+    enviarRegistro(rangoAviso, "paso");
+    empezarAnimPrincipal(ANIM_SALUDO, 1200);
+    irA(P_PRINCIPAL);
+}
+
 // Se llama desde el loop una vez por segundo: ¿toca preguntar algo?
 // Parte 1: pone al dia las fichas de todos los rangos (dia nuevo, rango terminado).
 // Parte 2: si Chaca esta tranquilo, busca el primer rango que necesite preguntar.
@@ -1448,6 +1488,7 @@ void revisarAgenda() {
         if (v != r.vuelta) {  // empezo una vuelta nueva del rango: cada dia arranca de cero
             r.vuelta = v;
             r.confirmado = false;
+            r.paso = false;
             r.avisos = 0;
             r.cerrado = false;
         }
@@ -1464,8 +1505,8 @@ void revisarAgenda() {
     if (ultimoAvisoGlobal != 0 && millis() - ultimoAvisoGlobal < 2 * 60000UL) return;
     for (int i = 0; i < nRangos; i++) {
         Rango& r = rangos[i];
-        // no pregunta si: ya dijo que si, ya pregunto el maximo, o no es el horario
-        if (r.confirmado || r.avisos >= maxAvisos || !enRango(r.desde, r.hasta, m)) continue;
+        // no pregunta si: ya dijo que si, dijo "Hoy paso", ya pregunto el maximo, o no es el horario
+        if (r.confirmado || r.paso || r.avisos >= maxAvisos || !enRango(r.desde, r.hasta, m)) continue;
         // ni si todavia no pasaron los 45 minutos desde la ultima vez
         if (r.avisos > 0 && millis() - r.ultimoAvisoMs < (unsigned long)reinsistirMin * 60000UL) continue;
         mostrarAviso(i);
@@ -1787,13 +1828,15 @@ void loop() {
                 dibujarZonaHablar(frame);
             }
             if (nav) {
-                cursorAviso = 1 - cursorAviso;  // alterna entre 0 (Si) y 1 (Mas tarde)
-                dibujarOpcionAviso(0);
-                dibujarOpcionAviso(1);
+                int anterior = cursorAviso;
+                cursorAviso = (cursorAviso + 1) % N_OPC_AVISO;  // Si -> Mas tarde -> Hoy paso -> Si
+                dibujarOpcionAviso(anterior);
+                dibujarOpcionAviso(cursorAviso);
             }
             if (sel) {
-                if (cursorAviso == 0) responderSi();
-                else responderMasTarde();
+                if (cursorAviso == OPC_SI) responderSi();
+                else if (cursorAviso == OPC_MAS_TARDE) responderMasTarde();
+                else responderHoyPaso();
             } else if (back) {
                 responderMasTarde();
             } else if (millis() - avisoInicio > AVISO_TIMEOUT_MS) {

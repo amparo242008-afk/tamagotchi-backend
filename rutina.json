@@ -3,10 +3,14 @@
   "max_avisos": 3,
   "silencio": { "desde": "22:00", "hasta": "08:00" },
   "rangos": [
-    { "clave": "desayuno", "actividad": "comida",  "desde": "08:00", "hasta": "11:00", "pregunta": "¿Ya desayunaste?" },
-    { "clave": "almuerzo", "actividad": "comida",  "desde": "12:00", "hasta": "15:00", "pregunta": "¿Ya almorzaste?" },
-    { "clave": "cena",     "actividad": "comida",  "desde": "19:00", "hasta": "22:00", "pregunta": "¿Ya cenaste?" },
-    { "clave": "bano",     "actividad": "higiene", "desde": "08:00", "hasta": "21:00", "pregunta": "¿Te bañaste hoy?" },
+    { "clave": "desayuno", "actividad": "comida",  "desde": "08:00", "hasta": "11:00", "pregunta": "¿Ya desayunaste?",
+      "micro": ["¿Picaste algo?", "¿Tomamos algo?", "¿Vemos qué podemos comer?"] },
+    { "clave": "almuerzo", "actividad": "comida",  "desde": "12:00", "hasta": "15:00", "pregunta": "¿Ya almorzaste?",
+      "micro": ["¿Picaste algo?", "¿Tomamos algo?", "¿Vemos qué podemos comer?"] },
+    { "clave": "cena",     "actividad": "comida",  "desde": "19:00", "hasta": "22:00", "pregunta": "¿Ya cenaste?",
+      "micro": ["¿Picaste algo?", "¿Tomamos algo?", "¿Vemos qué podemos comer?"] },
+    { "clave": "bano",     "actividad": "higiene", "desde": "08:00", "hasta": "21:00", "pregunta": "¿Te lavaste cara y dientes?",
+      "micro": ["¿Te lavaste los dientes?", "¿Te lavaste la cara?", "¿Te lavaste las manos?"] },
     { "clave": "dormir",   "actividad": "dormir",  "desde": "21:00", "hasta": "01:00", "pregunta": "¿Vamos a dormir?" }
   ]
 }

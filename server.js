@@ -299,10 +299,15 @@ app.get('/rutina', async (req, res) => {
         const rutina = leerRutina();
         const rangos = [];
         for (const r of rutina.rangos) {
-            // ¿ya se contestó "sí" en esta vuelta del rango? (así un reinicio no repregunta)
+            // ¿ya se contestó "sí" (o "hoy paso") en esta vuelta del rango? (así un reinicio no repregunta)
             const result = await pool.query(
                 `SELECT 1 FROM historial_acciones
                  WHERE clave = $1 AND tipo LIKE 'confirmo_%' AND fecha >= $2 LIMIT 1`,
+                [r.clave, inicioUltimoRango(r)]
+            );
+            const paso = await pool.query(
+                `SELECT 1 FROM historial_acciones
+                 WHERE clave = $1 AND tipo LIKE 'paso_%' AND fecha >= $2 LIMIT 1`,
                 [r.clave, inicioUltimoRango(r)]
             );
             // cuántas veces ya preguntó hoy, para que un reinicio no vuelva a contar desde 0
@@ -316,6 +321,7 @@ app.get('/rutina', async (req, res) => {
             rangos.push({
                 ...r,
                 confirmado: result.rows.length > 0,
+                paso: paso.rows.length > 0,
                 avisos: fila ? fila.cantidad_insistencias : 0,
                 min_desde_ultimo: fila && fila.min_desde_ultimo !== null ? Number(fila.min_desde_ultimo) : null,
             });
@@ -332,11 +338,15 @@ app.get('/rutina', async (req, res) => {
     }
 });
 
-// Body: { "clave": "almuerzo", "respuesta": "aviso" | "si" | "mas_tarde" | "sin_respuesta" }
+// Body: { "clave": "almuerzo", "respuesta": "aviso" | "si" | "si_micro" | "mas_tarde" | "paso" | "sin_respuesta" }
 // "aviso" = Chaca acaba de preguntar (no va al historial, solo suma en seguimiento_avisos).
+// "si_micro" = dijo que sí a una micro-tarea: cuenta como cumplido (en el historial queda "confirmo_micro_...").
+// "paso" = eligió "Hoy paso": no es cumplido, pero tampoco "sin respuesta" (la persona respondió).
 app.post('/registro', async (req, res) => {
     const { clave, respuesta } = req.body;
-    const prefijos = { si: 'confirmo', mas_tarde: 'posterga', sin_respuesta: 'sin_respuesta' };
+    const prefijos = {
+        si: 'confirmo', si_micro: 'confirmo_micro', mas_tarde: 'posterga', paso: 'paso', sin_respuesta: 'sin_respuesta',
+    };
     const rango = leerRutina().rangos.find((r) => r.clave === clave);
     if (!rango || (!prefijos[respuesta] && respuesta !== 'aviso')) {
         return res.status(400).json({ error: 'Registro inválido' });
@@ -355,7 +365,7 @@ app.post('/registro', async (req, res) => {
             );
             return res.json({ mensaje: 'aviso anotado' });
         }
-        if (respuesta === 'si') {
+        if (respuesta === 'si' || respuesta === 'si_micro') {
             await pool.query(
                 `INSERT INTO seguimiento_avisos (tipo, fecha, completado)
                  VALUES ($1, $2, TRUE)
@@ -367,7 +377,7 @@ app.post('/registro', async (req, res) => {
         if (respuesta === 'sin_respuesta') {
             const ya = await pool.query(
                 `SELECT 1 FROM historial_acciones
-                 WHERE clave = $1 AND (tipo LIKE 'confirmo_%' OR tipo LIKE 'sin_respuesta_%') AND fecha >= $2 LIMIT 1`,
+                 WHERE clave = $1 AND (tipo LIKE 'confirmo_%' OR tipo LIKE 'paso_%' OR tipo LIKE 'sin_respuesta_%') AND fecha >= $2 LIMIT 1`,
                 [clave, inicioUltimoRango(rango)]
             );
             if (ya.rows.length > 0) return res.json({ mensaje: 'ya registrado' });
