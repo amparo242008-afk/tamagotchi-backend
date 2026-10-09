@@ -1,12 +1,34 @@
 // server.js - Backend del Tamagotchi
 // Node.js + Express + PostgreSQL
+//
+// Qué es esto: un programa que corre en Render (en internet) y le contesta a Roberto.
+// Roberto le pide cosas a una dirección (ej. GET /estado) y el servidor contesta en JSON.
+// Los datos quedan guardados en una base de datos Postgres (tablas, como en Excel).
+//
+// Índice:
+//   1. Conexión a Postgres
+//   2. Configuración (qué tan rápido bajan los stats)
+//   3. calcularEstadoActual: cuánto bajó cada stat desde la última vez
+//   4. GET  /estado          -> los stats de Roberto ahora
+//   5. POST /accion          -> Roberto comió / jugó / se durmió / se despertó
+//   6. GET  /respuesta/:clave y GET /preguntas -> las preguntas de Info
+//   6c. GET /rutina y POST /registro -> la agenda (avisos de comer, bañarse, dormir)
+//   7. prepararBase y arranque del servidor
+//
+// Cómo se lee un "endpoint":  app.get('/estado', async (req, res) => { ... })
+//   - app.get / app.post: a qué tipo de pedido contesta (GET = traer, POST = mandar algo)
+//   - '/estado': la dirección
+//   - req (request): lo que mandó Roberto (req.body = los datos del POST)
+//   - res (response): la contestación; res.json({...}) la manda
+//   - async / await: esperar a la base de datos sin trabar el servidor
+//   - try / catch: si algo falla, se contesta un error 500 en vez de que se caiga todo
 
-const express = require('express');
-const { Pool } = require('pg');
-require('dotenv').config();
+const express = require('express');   // la librería para armar el servidor web
+const { Pool } = require('pg');       // la librería para hablar con Postgres
+require('dotenv').config();           // lee el archivo .env (contraseñas locales)
 
 const app = express();
-app.use(express.json());
+app.use(express.json());              // para entender los pedidos que vienen en JSON
 
 // Render inyecta PORT automáticamente; en local caemos a 3000.
 const PORT = process.env.PORT || 3000;
@@ -238,6 +260,7 @@ app.get('/preguntas', async (req, res) => {
 // Argentina es UTC-3 todo el año (no hay horario de verano)
 const OFFSET_ARGENTINA_MS = -3 * 60 * 60 * 1000;
 
+// "08:30" -> 510 (minutos desde la medianoche)
 function aMinutos(hhmm) {
     const [h, m] = hhmm.split(':').map(Number);
     return h * 60 + m;
@@ -261,11 +284,15 @@ function fechaDelRango(rango) {
     return new Date(inicioUltimoRango(rango).getTime() + OFFSET_ARGENTINA_MS).toISOString().slice(0, 10);
 }
 
+// Lee rutina.json de nuevo cada vez (borrando la copia guardada), así si se edita
+// el archivo no hace falta reiniciar el servidor.
 function leerRutina() {
     delete require.cache[require.resolve('./rutina.json')];
     return require('./rutina.json');
 }
 
+// GET /rutina: Roberto la pide al prender. Le devuelve rutina.json y, para cada rango,
+// lo que ya pasó hoy (si ya dijo "sí", cuántas veces preguntó y hace cuánto).
 app.get('/rutina', async (req, res) => {
     try {
         const rutina = leerRutina();

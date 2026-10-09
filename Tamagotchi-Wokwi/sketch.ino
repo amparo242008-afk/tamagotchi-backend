@@ -1,9 +1,39 @@
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <ArduinoJson.h>
-#include <SPI.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_ILI9341.h>
+// =====================================================================
+//  ROBERTO - firmware del tamagotchi (ESP32-S3 + pantalla ILI9341)
+// =====================================================================
+// Como esta armado este archivo (en orden, de arriba hacia abajo):
+//
+//   1. Librerias y dibujos (.h)        - lo que se usa de afuera
+//   2. Configuracion                   - WiFi, servidor, pines, posiciones
+//   3. Variables globales              - stats, agenda, pantallas, cursores
+//   4. Sonido y reloj                  - melodias del buzzer, hora real (NTP)
+//   5. Botones                         - sePresiono()
+//   6. Dibujo                          - colores, sprites, fondos comprimidos (RLE)
+//   7. Backend (internet)              - hablar con el servidor de Render
+//   8. Una seccion por pantalla        - Principal, Menu, Comida, Cocina, Dormir,
+//                                        Info, Minijuego, Agenda (avisos)
+//   9. irA()                           - cambia de pantalla
+//  10. setup() y loop()                - el arranque y la vuelta infinita
+//
+// Como funciona todo junto:
+//   - setup() corre UNA vez al prender: prepara la pantalla y los botones,
+//     muestra la Principal y lanza la "tarea de red".
+//   - loop() se repite para siempre (unas 20 veces por segundo): lee los botones
+//     y, segun la pantalla en la que estamos, decide que hacer.
+//   - La tarea de red (tareaRed) corre AL MISMO TIEMPO en el otro nucleo del
+//     ESP32: habla con el servidor sin trabar la pantalla.
+//   - Roberto funciona como una "maquina de estados": siempre esta en UNA
+//     pantalla (pantallaActual) y irA() lo pasa a otra.
+// =====================================================================
+
+// ---------- 1. Librerias ----------
+#include <WiFi.h>               // conectarse a internet
+#include <HTTPClient.h>         // pedirle cosas al servidor (GET / POST)
+#include <ArduinoJson.h>        // leer las respuestas del servidor (vienen en JSON)
+#include <SPI.h>                // el "cable" de comunicacion con la pantalla
+#include <Adafruit_GFX.h>       // funciones de dibujo (rectangulos, texto, triangulos...)
+#include <Adafruit_ILI9341.h>   // el controlador de nuestra pantalla en particular
+// Los dibujos de Piskel ya convertidos a codigo (ver herramientas/)
 #include "sprites/sprites.h"
 #include "sprites/comida.h"
 #include "sprites/iconos.h"
@@ -16,20 +46,29 @@
 #include "fondos/parque.h"
 #include "sprites/ObjetosJuego.h"
 
+// ---------- 2. Configuracion ----------
+// Red WiFi. "Wokwi-GUEST" es la red falsa del simulador; con la placa real
+// aca va el nombre y la contrasena del WiFi de la casa.
 const char* ssid = "Wokwi-GUEST";
 const char* password = "";
 
+// Direccion del servidor (server.js, subido a Render). Todas las consultas empiezan con esto.
 const char* urlBase = "https://tamagotchi-api-9vk6.onrender.com";
 
-// Pines de la pantalla (SPI de hardware)
+// Pines de la pantalla (SPI de hardware: el ESP32 tiene un circuito propio para
+// mandar datos rapido a la pantalla; por software era lento y trababa los botones).
+// MISO no se usa (la pantalla no le contesta al ESP32), pero hay que darle un pin libre.
 #define TFT_CS 10
 #define TFT_DC 13
 #define TFT_RST 14
 #define TFT_MOSI 11
 #define TFT_SCK 12
 #define TFT_MISO 16
+// "tft" es la pantalla: todo lo que se dibuja pasa por aca (tft.fillRect, tft.print...)
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 
+// Los 3 botones y el buzzer. #define = un nombre fijo para un numero (no ocupa memoria).
+// NAV = moverse / cambiar opcion, SELECT = elegir, BACK = volver.
 #define PIN_NAV 4
 #define PIN_SELECT 5
 #define PIN_BACK 6
@@ -55,45 +94,59 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 #define COCINA_ZONA_W 110
 #define COCINA_ZONA_H 96
 
-#define DURACION_CINEMATICA 3000
-#define MORDIDAS 3
+#define DURACION_CINEMATICA 3000   // cuanto dura la escena de la cocina (en milisegundos)
+#define MORDIDAS 3                 // en cuantas mordidas desaparece la comida
 
-// ---------- Stats ----------
-// volatile: los actualiza la tarea de red (otro nucleo) y los lee el loop
+// =====================================================================
+// 3. VARIABLES GLOBALES (las puede usar cualquier parte del programa)
+// =====================================================================
+
+// ---------- Stats de Roberto (0 a 100) ----------
+// Los calcula el servidor; aca guardamos la ultima copia que nos mando.
+// volatile: los actualiza la tarea de red (otro nucleo) y los lee el loop.
+// Esa palabra le avisa al compilador que el valor puede cambiar "desde afuera"
+// y que siempre lo lea de nuevo de la memoria.
 volatile int hambreActual = 100;
 volatile int suenoActual = 100;
 volatile int dopaminaActual = 100;
-volatile bool statsNuevos = false;
+volatile bool statsNuevos = false;           // "llegaron stats, actualiza la pantalla" (lo baja el loop)
 volatile bool durmiendoServidor = false;      // el servidor dice que Roberto esta dormido
 volatile bool primeraConsulta = true;         // para retomar el sueno si se reinicio la placa
 volatile uint32_t intervaloConsultaMs = 60000;  // cada cuanto se piden los stats (mas seguido al dormir)
 
-// Cola de acciones para mandar al servidor sin trabar la pantalla
+// Cola de acciones para mandar al servidor sin trabar la pantalla.
+// Funciona como una fila de espera: las pantallas dejan un "Pedido" (ej. "alimentar")
+// y siguen de largo; la tarea de red los va sacando de a uno y los manda al servidor.
 QueueHandle_t colaAcciones;
 // Lo que viaja por la cola: una accion del juguete ("alimentar", "jugar"...) o un
 // registro de la agenda ("registro"). dato = puntos del juego, o numero de rango.
 struct Pedido { const char* tipo; int dato; const char* respuesta; };
 
 // ---------- Agenda de Roberto (rutina.json en el servidor) ----------
-// En cada rango horario Roberto pregunta "�ya comiste?" (o te banaste, o a dormir).
+// En cada rango horario Roberto pregunta "¿ya comiste?" (o te banaste, o a dormir).
 // "Si" = la persona confirma, y Roberto lo hace con ella. "Mas tarde" = vuelve a
 // preguntar despues. Lo que no se contesta se anota en silencio para el acompanante.
 #define MAX_RANGOS 8
+// enum = una lista de opciones con nombre (por dentro son 0, 1, 2...)
 enum Actividad { ACT_COMIDA, ACT_HIGIENE, ACT_DORMIR };
+// struct = una "ficha" que junta varios datos. Cada rango de rutina.json
+// (desayuno, almuerzo, cena, bano, dormir) tiene su ficha, con lo que Roberto
+// necesita recordar de ese rango HOY.
 struct Rango {
     char clave[16];
     Actividad actividad;
     int desde, hasta;            // minutos del dia (ej. 8:30 = 510); hasta < desde = cruza la medianoche
     bool confirmado;             // ya dijo "si" en esta vuelta del rango
     int avisos;                  // cuantas veces pregunto en esta vuelta
-    unsigned long ultimoAvisoMs;
-    bool cerrado;                // ya se anoto "sin respuesta"
+    unsigned long ultimoAvisoMs; // cuando pregunto la ultima vez (millis = ms desde que prendio)
+    bool cerrado;               // ya se anoto "sin respuesta"
     long vuelta;                 // identifica la vuelta (el dia) del rango, para arrancar de cero
 };
-Rango rangos[MAX_RANGOS];
-int nRangos = 0;
-int reinsistirMin = 45;
-int maxAvisos = 3;
+Rango rangos[MAX_RANGOS];       // las fichas de todos los rangos
+int nRangos = 0;                // cuantos rangos hay de verdad (los que mando el servidor)
+// Estos valores se pisan con los de rutina.json cuando llega la agenda:
+int reinsistirMin = 45;         // cada cuanto vuelve a preguntar
+int maxAvisos = 3;              // cuantas veces como mucho por rango
 int silencioDesde = 22 * 60;     // de noche Roberto no hace ruido
 int silencioHasta = 8 * 60;
 volatile bool rutinaLista = false;
@@ -104,9 +157,12 @@ int cursorAviso = 0;             // 0 = Si, 1 = Mas tarde
 unsigned long avisoInicio = 0;
 
 // ---------- Pantallas ----------
+// Todas las pantallas que existen. pantallaActual dice en cual estamos;
+// para cambiar se usa irA(P_...), nunca se cambia pantallaActual a mano.
 enum Pantalla { P_PRINCIPAL, P_MENU, P_COMIDA, P_COCINA, P_DORMIR, P_INFO, P_INFO_RESPUESTA, P_JUGAR, P_JUGAR_FIN, P_AVISO };
 Pantalla pantallaActual = P_PRINCIPAL;
 
+// Los "cursor..." guardan que opcion esta elegida en cada pantalla (0 = la primera)
 int cursorMenu = 0;
 const char* menuItems[4] = {"Comida", "Dormir", "Jugar", "Info"};
 // Centros de los circulos de fondo_menu.h (medidos sobre el dibujo)
@@ -130,8 +186,9 @@ int nPreguntasBajadas = 0;
 volatile bool preguntasListas = false;   // true cuando ya se bajaron del servidor
 bool infoDibujadaConBajadas = false;
 
-String respuestaActual = "";
+String respuestaActual = "";    // el texto que Roberto esta diciendo en la burbuja
 
+// Cocina: cuando empezo la escena y que se dibujo por ultima vez (para no repintar de mas)
 unsigned long cocinaInicio = 0;
 int frameCocinaDibujado = -1;
 int mordidasDibujadas = -1;
@@ -150,10 +207,16 @@ unsigned long hablarInicio = 0;
 unsigned long hablarDuracion = 0;
 int frameHablarDibujado = -1;
 
+// Dormir: que dibujo de la animacion toca (0 o 1) y cuando cambio por ultima vez
 int frameDormir = 0;
 unsigned long ultimoCambioDormir = 0;
 
+// Como estaba cada boton en la vuelta anterior del loop (ver sePresiono)
 bool navAnterior = false, selectAnterior = false, backAnterior = false;
+
+// =====================================================================
+// 4. SONIDO Y RELOJ
+// =====================================================================
 
 // ---------- Sonido (buzzer) ----------
 // Melodias cortitas y suaves. Cada nota: {frecuencia en Hz, duracion en ms}.
@@ -177,8 +240,12 @@ const Nota SONIDO_AVISO[]    = {{MI5, 100}, {0, 60}, {SOL5, 100}, {0, 60}, {DO6,
 const Nota SONIDO_NO[]       = {{MI5, 80}, {0, 40}, {DO5, 120}, {0, 0}};
 
 // ---------- Reloj (hora real por internet, NTP) ----------
+// El ESP32 no tiene pila de reloj: al prender no sabe que hora es.
+// La tarea de red le pregunta la hora a un servidor de internet (NTP) y desde ahi la lleva sola.
 bool horaLista() { return time(nullptr) > 1700000000; }  // antes de sincronizar, el reloj arranca en 1970
 
+// La hora de ahora contada en minutos desde la medianoche (ej. 13:15 = 795).
+// Asi comparar horarios es comparar numeros.
 int minutoDelDia() {
     time_t t = time(nullptr);
     struct tm hora;
@@ -186,7 +253,7 @@ int minutoDelDia() {
     return hora.tm_hour * 60 + hora.tm_min;
 }
 
-// �El minuto m esta dentro del rango? (puede cruzar la medianoche, ej. 21:00 a 01:00)
+// ¿El minuto m esta dentro del rango? (puede cruzar la medianoche, ej. 21:00 a 01:00)
 bool enRango(int desde, int hasta, int m) {
     if (desde < hasta) return m >= desde && m < hasta;
     return m >= desde || m < hasta;
@@ -203,6 +270,14 @@ void sonar(const Nota* melodia) {
     for (int i = 0; melodia[i].ms > 0; i++) tone(PIN_BUZZER, melodia[i].freq, melodia[i].ms);
 }
 
+// =====================================================================
+// 5. BOTONES
+// =====================================================================
+// Los botones estan con INPUT_PULLUP: sueltos leen HIGH, apretados leen LOW.
+// sePresiono() devuelve true SOLO en el instante en que se aprieta (el "flanco"),
+// no todo el tiempo que se mantiene apretado. Si no, una sola apretada
+// contaria como 20 (una por cada vuelta del loop).
+// "anterior" se pasa con & para que la funcion pueda guardar el estado nuevo.
 bool sePresiono(int pin, bool &anterior) {
     bool actual = (digitalRead(pin) == LOW);
     bool disparo = (actual && !anterior);
@@ -210,13 +285,25 @@ bool sePresiono(int pin, bool &anterior) {
     return disparo;
 }
 
+// =====================================================================
+// 6. DIBUJO
+// =====================================================================
+// Colores: la pantalla usa "RGB565", cada color entra en 16 bits:
+// 5 bits de rojo, 6 de verde y 5 de azul. tft.color565(r, g, b) convierte
+// un color normal (0-255 cada uno, como en Piskel) a ese formato.
+
 // ---------- Color ----------
+// Los sprites son filas de letras (ej. "..AAB.."); cada letra es un color de la paleta.
+// Esta funcion busca que color le corresponde a una letra.
 uint16_t colorDeLetraPaleta(char c, const char* letras, const uint16_t* colores, int n) {
     for (int i = 0; i < n; i++) if (letras[i] == c) return colores[i];
     return ILI9341_BLACK;
 }
 
 // Oscurece un color RGB565 multiplicando cada canal por un factor (0.5 = mitad de brillo)
+// Se usa para el "filtro nocturno" de Dormir y para el boton apretado.
+// Los >> y & separan el rojo, el verde y el azul que vienen pegados en un solo numero,
+// y el << del final los vuelve a pegar.
 uint16_t oscurecer(uint16_t color565, float factor) {
     uint8_t r = (color565 >> 11) & 0x1F;
     uint8_t g = (color565 >> 5) & 0x3F;
@@ -228,6 +315,9 @@ uint16_t oscurecer(uint16_t color565, float factor) {
 }
 
 // ---------- Dibujo de sprites, con transparencia real ----------
+// Recorre el sprite letra por letra. Los '.' se saltean (transparente: se ve lo que
+// ya habia atras). Cada letra se dibuja como un cuadrado de "escala" x "escala" pixeles,
+// asi un sprite de 24x24 con escala 5 ocupa 120x120 en la pantalla.
 // "g" puede ser la pantalla (tft) o un lienzo en memoria (GFXcanvas16).
 // colMax: solo dibuja las columnas 0..colMax-1 (sirve para "morder" la comida).
 // lado: 24 para Roberto y la comida, 16 para el corazon y la bomba.
@@ -247,6 +337,7 @@ void dibujarSpriteEn(Adafruit_GFX &g, int x, int y, const char* const* sprite,
     }
 }
 
+// Atajos: dibujar directo en la pantalla (Generico) o un sprite de Roberto con su paleta (dibujarSprite)
 void dibujarSpriteGenerico(int x, int y, const char* const* sprite,
                            const char* letras, const uint16_t* colores, int n, int escala, float factor = 1.0) {
     dibujarSpriteEn(tft, x, y, sprite, letras, colores, n, escala, factor);
@@ -256,6 +347,7 @@ void dibujarSprite(int x, int y, const char* const* sprite, int escala = 5, floa
     dibujarSpriteGenerico(x, y, sprite, PALETA_LETRAS, PALETA_COLORES, PALETA_N, escala, factor);
 }
 
+// Iconos de un solo color: 'X' = pintar, cualquier otra cosa = transparente
 void dibujarIcono(int x, int y, const char* const* icono, uint16_t colorTinta) {
     for (int fy = 0; fy < 24; fy++) {
         for (int fx = 0; fx < 24; fx++) {
@@ -265,9 +357,15 @@ void dibujarIcono(int x, int y, const char* const* icono, uint16_t colorTinta) {
 }
 
 // ---------- Fondos (RLE) ----------
+// Un fondo de 240x320 son 76.800 pixeles: guardado tal cual no entra comodo.
+// Por eso esta comprimido con RLE: en vez de "rojo, rojo, rojo, rojo" se guarda
+// "rojo x4". colores[i] es el color y conteos[i] cuantos pixeles seguidos lo tienen.
+// Los arrays viven en PROGMEM (la memoria flash, la grande); pgm_read_word los lee de ahi.
+// Se dibujan de izquierda a derecha y de arriba hacia abajo, como se lee un libro.
+// factor < 1 oscurece todo el fondo (noche).
 void dibujarFondoRLE(const uint16_t* colores, const uint16_t* conteos, int runs, int ancho, int alto, float factor) {
     tft.startWrite();
-    tft.setAddrWindow(0, 0, ancho, alto);
+    tft.setAddrWindow(0, 0, ancho, alto);  // "voy a pintar este rectangulo, en orden"
     for (int i = 0; i < runs; i++) {
         uint16_t color = pgm_read_word(&colores[i]);
         if (factor < 0.999) color = oscurecer(color, factor);
@@ -319,7 +417,8 @@ void fondoRegionEnBuffer(const uint16_t* colores, const uint16_t* conteos, int r
 }
 
 // Arma la zona (fondo + sprites) en un lienzo en memoria y la manda de una
-// sola vez a la pantalla: sin parpadeo. Uso:
+// sola vez a la pantalla: sin parpadeo. (GFXcanvas16 = una "pantalla de mentira"
+// en la memoria RAM; se dibuja ahi con las mismas funciones y despues se copia.) Uso:
 //   GFXcanvas16* lienzo = empezarZona(...);  dibujar en *lienzo;  terminarZona(lienzo, x, y);
 GFXcanvas16* empezarZona(const uint16_t* colores, const uint16_t* conteos, int runs, int ancho,
                          int rx, int ry, int rw, int rh, float factor) {
@@ -334,7 +433,15 @@ void terminarZona(GFXcanvas16* lienzo, int rx, int ry) {
     delete lienzo;
 }
 
-// ---------- Backend ----------
+// =====================================================================
+// 7. BACKEND (hablar con el servidor de Render)
+// =====================================================================
+// Todas estas funciones hacen lo mismo: arman la direccion (urlBase + "/algo"),
+// piden con GET (traer datos) o POST (mandar datos), y leen la respuesta JSON.
+// OJO: las que terminan en "Ahora" y las "descargar..." pueden tardar hasta ~50 s,
+// asi que solo se llaman desde la tarea de red, nunca desde el loop.
+
+// GET /estado: trae hambre, sueno, dopamina y si esta durmiendo
 void consultarEstado() {
     if (WiFi.status() != WL_CONNECTED) return;
     HTTPClient http;
@@ -353,6 +460,8 @@ void consultarEstado() {
     http.end();
 }
 
+// POST /accion: avisa que Roberto comio / jugo / se durmio / se desperto.
+// Manda algo como {"tipo":"jugar","puntos":7} y despues pide los stats nuevos.
 void enviarAccionAhora(const char* tipo, int puntos) {
     if (WiFi.status() != WL_CONNECTED) return;
     HTTPClient http;
@@ -373,8 +482,6 @@ void enviarAccion(const char* tipo, int puntos = 0) {
     xQueueSend(colaAcciones, &p, 0);
 }
 
-// Tarea de red: corre sola en el nucleo 0, mientras el loop (nucleo 1) dibuja y lee botones.
-// Manda las acciones pendientes y cada 1 minuto vuelve a pedir los stats.
 // Las preguntas que se usan: las bajadas del servidor, o las fijas si no hubo internet
 int cantPreguntas() { return preguntasListas ? nPreguntasBajadas : N_PREGUNTAS_FIJAS; }
 const char* textoPregunta(int i) { return preguntasListas ? preguntasBajadas[i] : preguntasFijas[i]; }
@@ -472,6 +579,10 @@ void enviarRegistro(int rango, const char* respuesta) {
     xQueueSend(colaAcciones, &p, 0);
 }
 
+// Tarea de red: corre sola en el nucleo 0, mientras el loop (nucleo 1) dibuja y lee botones.
+// 1) espera el WiFi (hasta 10 s), 2) pide la hora, 3) baja stats, preguntas y agenda,
+// 4) despues se queda para siempre: si llega un pedido a la cola lo manda;
+//    si pasa un rato sin pedidos (intervaloConsultaMs), vuelve a pedir los stats.
 void tareaRed(void*) {
     unsigned long inicioWiFi = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - inicioWiFi < 10000) vTaskDelay(pdMS_TO_TICKS(100));
@@ -495,6 +606,8 @@ void tareaRed(void*) {
     }
 }
 
+// GET /respuesta/<clave>: la respuesta de Roberto a una pregunta de Info.
+// Esta SI se llama desde el loop (la pantalla espera con la burbuja "...").
 String obtenerRespuesta(const char* clave) {
     if (WiFi.status() != WL_CONNECTED) return "Sin WiFi";
     HTTPClient http;
@@ -511,7 +624,15 @@ String obtenerRespuesta(const char* clave) {
     return resultado;
 }
 
-// ---------- Pantallas ----------
+// =====================================================================
+// 8. PANTALLAS
+// =====================================================================
+// Cada pantalla tiene una funcion dibujarXxx() que la pinta entera al entrar
+// (la llama irA), y a veces funciones chicas que repintan solo un pedacito
+// cuando algo cambia (el cursor, una animacion). Lo que pasa con los botones
+// en cada pantalla esta en loop(), en el switch de abajo de todo.
+
+// ---------- Principal (el living con Roberto) ----------
 // Zona de la principal que se repinta al animar (Roberto + la estrella del festejo)
 #define PRINCIPAL_ZONA_X 50
 #define PRINCIPAL_ZONA_Y 150
@@ -550,6 +671,8 @@ int faseEstrella() {
     return ((millis() - animInicio) / 250) % 2;
 }
 
+// Pinta Roberto (y la estrella si festeja) sobre su pedacito de fondo.
+// Dentro del lienzo las coordenadas arrancan en 0, por eso se resta PRINCIPAL_ZONA_X/Y.
 void dibujarZonaPrincipal(const char* const* sprite, int fase) {
     GFXcanvas16* lienzo = empezarZona(FONDO_COLOR, FONDO_CONTEO, FONDO_RUNS, FONDO_ANCHO,
                                       PRINCIPAL_ZONA_X, PRINCIPAL_ZONA_Y, PRINCIPAL_ZONA_W, PRINCIPAL_ZONA_H, 1.0);
@@ -577,6 +700,7 @@ void animarPrincipal() {
     }
 }
 
+// Al entrar a la Principal: fondo completo + Roberto
 void dibujarPrincipal() {
     dibujarFondo();
     spriteDibujado = spritePrincipal();
@@ -584,6 +708,7 @@ void dibujarPrincipal() {
     dibujarZonaPrincipal(spriteDibujado, faseEstrellaDibujada);
 }
 
+// ---------- Menu (4 circulos + barras de stats) ----------
 // Los circulos e iconos ya vienen dibujados en fondo_menu.h.
 // El seleccionado lleva una flechita blanca abajo, apuntando hacia arriba.
 // Para borrarla se repinta esa zona del fondo.
@@ -592,6 +717,7 @@ void dibujarPrincipal() {
 #define FLECHA_H 11
 #define FLECHA_SEP 4        // espacio entre el circulo y la punta de la flecha
 
+// Repinta la zona de la flechita del circulo i: con flecha si es el elegido, vacia si no
 void dibujarCirculoMenu(int i) {
     int zx = menuX[i] - FLECHA_W / 2 - 1;
     int zy = menuY[i] + MENU_RADIO_V + FLECHA_SEP;
@@ -637,6 +763,7 @@ void noTieneSueno() {
 #define BARRA_H 9
 const int barraY[3] = {236, 267, 298};
 
+// fila: 0 = hambre, 1 = sueno, 2 = dopamina. La parte llena es proporcional al valor (0-100).
 void dibujarBarraStat(int fila, int valor) {
     uint16_t colorLleno = tft.color565(235, 152, 102);   // el naranja del dibujo
     uint16_t colorVacio = tft.color565(248, 231, 121);   // el amarillo de adentro de la barra
@@ -657,6 +784,7 @@ void dibujarMenu() {
     dibujarStatsMenu();
 }
 
+// ---------- Comida (elegir que come) ----------
 // Pantalla de comida (fondo_comida.h): una comida a la vez, grande en el recuadro,
 // con su nombre abajo. NAV cambia de comida, SELECT es el boton "Comer".
 #define CARTA_X 59        // zona que se repinta: recuadro + plaquita del nombre
@@ -672,6 +800,7 @@ void dibujarMenu() {
 #define BOTON_COMER_W 70
 #define BOTON_COMER_H 17
 
+// Repinta el recuadro con la comida elegida (cursorComida) y su nombre
 void dibujarCartaComida() {
     GFXcanvas16* lienzo = empezarZona(FONDO_COMIDA_COLOR, FONDO_COMIDA_CONTEO, FONDO_COMIDA_RUNS, FONDO_COMIDA_ANCHO,
                                       CARTA_X, CARTA_Y, CARTA_W, CARTA_H, 1.0);
@@ -728,6 +857,7 @@ void dibujarComida() {
     dibujarFlechaComida();
 }
 
+// ---------- Cocina (escena: Roberto come, sin botones) ----------
 // Redibuja solo la zona de Roberto + comida. mordidas: 0 = comida entera,
 // MORDIDAS = ya no queda nada. Se "come" desde el lado de Roberto (derecha).
 void dibujarZonaCocina(int frame, int mordidas) {
@@ -736,7 +866,7 @@ void dibujarZonaCocina(int frame, int mordidas) {
     if (!lienzo) return;
     int cx = COMIDA_MESA_X - COCINA_ZONA_X;
     int cy = COMIDA_MESA_Y - COCINA_ZONA_Y;
-    int colMax = 24 - (24 * mordidas) / MORDIDAS;
+    int colMax = 24 - (24 * mordidas) / MORDIDAS;  // cuantas columnas de la comida quedan
     if (colMax > 0) {
         if (comidaElegida == 0) dibujarSpriteEn(*lienzo, cx, cy, SPR_LECHE, PALETA_LECHE, PALETA_LECHE_COLORES, PALETA_LECHE_N, COMIDA_ESCALA, 1.0, colMax);
         else dibujarSpriteEn(*lienzo, cx, cy, SPR_TORTA, PALETA_TORTA, PALETA_TORTA_COLORES, PALETA_TORTA_N, COMIDA_ESCALA, 1.0, colMax);
@@ -746,6 +876,7 @@ void dibujarZonaCocina(int frame, int mordidas) {
     terminarZona(lienzo, COCINA_ZONA_X, COCINA_ZONA_Y);
 }
 
+// Al entrar: anota la hora de inicio (el loop calcula todo a partir de ahi) y pinta la cocina
 void dibujarCocina() {
     cocinaInicio = millis();
     frameCocinaDibujado = 0;
@@ -754,9 +885,11 @@ void dibujarCocina() {
     dibujarZonaCocina(0, 0);
 }
 
+// ---------- Dormir (living oscurecido, Roberto grande con Zzz) ----------
 #define DORMIR_ESCALA 6
 #define DORMIR_LADO (24 * DORMIR_ESCALA)
 
+// Repinta solo a Roberto durmiendo (todo con factor 0.5 = de noche)
 void dibujarZonaDormir() {
     GFXcanvas16* lienzo = empezarZona(FONDO_COLOR, FONDO_CONTEO, FONDO_RUNS, FONDO_ANCHO,
                                       ROBERTO_DORMIR_X, ROBERTO_DORMIR_Y, DORMIR_LADO, DORMIR_LADO, 0.5);
@@ -800,6 +933,7 @@ void despertar() {
     irA(P_PRINCIPAL);
 }
 
+// ---------- Info (lista de preguntas) ----------
 // Renglones de fondo_info.h (medidos sobre el dibujo): parte de adentro, en y
 const int renglonY0[6] = {40, 84, 134, 174, 224, 264};
 const int renglonY1[6] = {63, 106, 153, 196, 246, 286};
@@ -916,6 +1050,8 @@ int partirEnLineas(const String& texto, int maxLetras, String* lineas, int maxLi
     return n;
 }
 
+// Dibuja la burbuja y el texto adentro, centrado. Prueba primero con letra
+// grande (tam 2); si no entra, usa la chica (tam 1). Cada letra mide 6x8 * tam.
 void dibujarBurbuja(const String& texto) {
     dibujarSpriteGenerico(BURBUJA_X, BURBUJA_Y, spr_burbujatexto, PALETA_BURBUJATEXTO,
                           PALETA_BURBUJATEXTO_COLORES, PALETA_BURBUJATEXTO_N, BURBUJA_ESCALA);
@@ -960,7 +1096,7 @@ void decirRespuesta(const String& texto) {
     respuestaActual = texto;
     dibujarBurbuja(texto);
     hablarInicio = millis();
-    hablarDuracion = constrain(texto.length() * 80, 600, 3000);
+    hablarDuracion = constrain(texto.length() * 80, 600, 3000);  // mas texto = habla mas rato (entre 0,6 y 3 s)
 }
 
 void dibujarInfoRespuesta() {
@@ -990,6 +1126,8 @@ void dibujarInfoRespuesta() {
 #define HUD_W 100
 #define HUD_H 24
 
+// Cada cosa que cae: si esta en uso, si es corazon (o bomba), donde esta y que tan rapido cae.
+// Hay lugar para MAX_OBJETOS a la vez; cuando una se atrapa o sale de la pantalla, se libera.
 struct Objeto { bool activo; bool corazon; int x; float y; float vel; };
 Objeto objetos[MAX_OBJETOS];
 int robX = 72;
@@ -1021,6 +1159,8 @@ void indexarParque() {
     parqueIndexado = true;
 }
 
+// ¿Se tocan dos rectangulos? (x, y, ancho, alto de cada uno)
+// Sirve para saber si Roberto atrapo algo y que pedazo de pantalla hay que repintar.
 bool seCruzan(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
     return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
 }
@@ -1067,6 +1207,7 @@ void dibujarEscenaJuego(int rx, int ry, int rw, int rh) {
     terminarZona(lienzo, rx, ry);
 }
 
+// Al entrar al juego: todo de cero (sin objetos, Roberto en el medio, 0 corazones)
 void dibujarJugar() {
     indexarParque();
     randomSeed(micros());
@@ -1083,7 +1224,9 @@ void dibujarJugar() {
 }
 
 // Un cuadro del juego: mover a Roberto, hacer caer las cosas, ver que atrapo
+// Se llama ~30 veces por segundo.
 void pasoJuego() {
+    // aca NO se usa sePresiono: mientras se mantiene apretado, Roberto sigue corriendo
     bool izq = digitalRead(PIN_NAV) == LOW;
     bool der = digitalRead(PIN_SELECT) == LOW;
 
@@ -1096,6 +1239,7 @@ void pasoJuego() {
     robX = constrain(robX, JUEGO_ROB_MIN_X, JUEGO_ROB_MAX_X);
     robFrame = (izq != der) ? (millis() / 120) % N_CORRER : 0;
     if (robX != viejoX || robFrame != viejoFrame || robMiraDerecha != viejoMira) {
+        // se repinta desde donde estaba hasta donde quedo (asi se borra el Roberto viejo)
         int x0 = min(robX, viejoX);
         int x1 = max(robX, viejoX) + JUEGO_ROB_LADO;
         dibujarEscenaJuego(x0, JUEGO_ROB_Y, x1 - x0, JUEGO_ROB_LADO);
@@ -1110,7 +1254,8 @@ void pasoJuego() {
         Objeto& o = objetos[i];
         if (!o.activo) continue;
         int yViejo = (int)o.y;
-        o.y += o.vel;
+        o.y += o.vel;  // cae un poquito
+        // la caja del objeto se achica 4 px de cada lado, asi rozarlo con el borde no cuenta
         if (seCruzan(o.x + 4, (int)o.y + 4, OBJ_LADO - 8, OBJ_LADO - 8, cuerpoX, cuerpoY, cuerpoW, cuerpoH)) {
             o.activo = false;
             if (o.corazon) {
@@ -1120,12 +1265,12 @@ void pasoJuego() {
                 if (corazones > 0) corazones--;  // nunca baja de 0
                 sonar(SONIDO_BOMBA);
             }
-            dibujarEscenaJuego(o.x, yViejo, OBJ_LADO, OBJ_LADO);
-            dibujarEscenaJuego(HUD_X, HUD_Y, HUD_W, HUD_H);
-        } else if (o.y > 320) {
+            dibujarEscenaJuego(o.x, yViejo, OBJ_LADO, OBJ_LADO);  // borrarlo
+            dibujarEscenaJuego(HUD_X, HUD_Y, HUD_W, HUD_H);       // actualizar el contador
+        } else if (o.y > 320) {  // se cayo de la pantalla sin que lo agarre
             o.activo = false;
             dibujarEscenaJuego(o.x, yViejo, OBJ_LADO, OBJ_LADO);
-        } else {
+        } else {  // sigue cayendo: repintar desde donde estaba hasta donde esta ahora
             dibujarEscenaJuego(o.x, yViejo, OBJ_LADO, (int)o.y - yViejo + OBJ_LADO);
         }
     }
@@ -1133,12 +1278,12 @@ void pasoJuego() {
     // Que caiga algo nuevo cada tanto (tranquilo, sin apuro)
     if (millis() >= juegoProximoObjeto) {
         for (int i = 0; i < MAX_OBJETOS; i++) {
-            if (objetos[i].activo) continue;
+            if (objetos[i].activo) continue;  // busca un lugar libre
             objetos[i].activo = true;
             objetos[i].corazon = random(100) < PROB_CORAZON;
             objetos[i].x = random(0, 240 - OBJ_LADO);
             objetos[i].y = -OBJ_LADO;
-            objetos[i].vel = 2.0 + random(0, 16) / 10.0;
+            objetos[i].vel = 2.0 + random(0, 16) / 10.0;  // entre 2 y 3,5 pixeles por cuadro
             break;
         }
         juegoProximoObjeto = millis() + random(600, 1100);
@@ -1185,6 +1330,7 @@ void dibujarIconoEn(Adafruit_GFX &g, int x, int y, const char* const* icono, uin
             if (icono[fy][fx] == 'X') g.fillRect(x + fx * escala, y + fy * escala, escala, escala, color);
 }
 
+// Una plaquita ("Si" o "Mas tarde"), con flechita si es la elegida
 void dibujarOpcionAviso(int i) {
     GFXcanvas16* lienzo = empezarZona(FONDO_COLOR, FONDO_CONTEO, FONDO_RUNS, FONDO_ANCHO,
                                       avisoOpcX[i], AVISO_OPC_Y, avisoOpcW[i], AVISO_OPC_H, 1.0);
@@ -1207,8 +1353,9 @@ void dibujarOpcionAviso(int i) {
     terminarZona(lienzo, avisoOpcX[i], AVISO_OPC_Y);
 }
 
+// Pantalla completa de la pregunta. El icono depende de la actividad del rango.
 void dibujarAviso() {
-    Rango& r = rangos[rangoAviso];
+    Rango& r = rangos[rangoAviso];  // & = "r" es el mismo rango, no una copia
     dibujarFondo();
     dibujarSpriteGenerico(BURBUJA_X, BURBUJA_Y, spr_burbujatexto, PALETA_BURBUJATEXTO,
                           PALETA_BURBUJATEXTO_COLORES, PALETA_BURBUJATEXTO_N, BURBUJA_ESCALA);
@@ -1234,6 +1381,7 @@ void dibujarAviso() {
     dibujarZonaHablar(frameHablarDibujado);
 }
 
+// Roberto pregunta por el rango i: anota que pregunto y abre la pantalla del aviso
 void mostrarAviso(int i) {
     rangoAviso = i;
     cursorAviso = 0;
@@ -1270,6 +1418,8 @@ void responderMasTarde() {
 }
 
 // Se llama desde el loop una vez por segundo: ¿toca preguntar algo?
+// Parte 1: pone al dia las fichas de todos los rangos (dia nuevo, rango terminado).
+// Parte 2: si Roberto esta tranquilo, busca el primer rango que necesite preguntar.
 void revisarAgenda() {
     if (!rutinaLista || !horaLista()) return;
     int m = minutoDelDia();
@@ -1291,16 +1441,26 @@ void revisarAgenda() {
     }
     // solo se pregunta con Roberto tranquilo en la pantalla principal
     if (pantallaActual != P_PRINCIPAL || animPrincipal != ANIM_REPOSO) return;
+    // y nunca dos preguntas seguidas: al menos 2 minutos entre una y otra
     if (ultimoAvisoGlobal != 0 && millis() - ultimoAvisoGlobal < 2 * 60000UL) return;
     for (int i = 0; i < nRangos; i++) {
         Rango& r = rangos[i];
+        // no pregunta si: ya dijo que si, ya pregunto el maximo, o no es el horario
         if (r.confirmado || r.avisos >= maxAvisos || !enRango(r.desde, r.hasta, m)) continue;
+        // ni si todavia no pasaron los 45 minutos desde la ultima vez
         if (r.avisos > 0 && millis() - r.ultimoAvisoMs < (unsigned long)reinsistirMin * 60000UL) continue;
         mostrarAviso(i);
         return;
     }
 }
 
+// =====================================================================
+// 9. CAMBIAR DE PANTALLA
+// =====================================================================
+// Anota la pantalla nueva y la dibuja entera. Es el UNICO lugar donde se cambia
+// pantallaActual, asi cada pantalla siempre arranca bien dibujada.
+// Para sumar una pantalla nueva: agregarla al enum Pantalla, hacer su dibujarXxx(),
+// agregar un case aca y otro en el switch del loop.
 void irA(int nueva) {
     pantallaActual = static_cast<Pantalla>(nueva);
     switch (nueva) {
@@ -1317,19 +1477,25 @@ void irA(int nueva) {
     }
 }
 
+// =====================================================================
+// 10. SETUP Y LOOP
+// =====================================================================
+
+// setup(): corre una sola vez, al prender la placa
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(115200);  // para mandar mensajes al "monitor serie" (sirve para buscar errores)
     delay(1000);
     // Si la placa se reinicio sola, aca dice por que (se ve en el monitor serie)
     Serial.printf("Arranque. Motivo del ultimo reinicio: %d\n", (int)esp_reset_reason());
 
+    // Botones: INPUT_PULLUP usa una resistencia interna, asi no hacen falta resistencias en el circuito
     pinMode(PIN_NAV, INPUT_PULLUP);
     pinMode(PIN_SELECT, INPUT_PULLUP);
     pinMode(PIN_BACK, INPUT_PULLUP);
 
     SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
     tft.begin();
-    tft.setRotation(0);
+    tft.setRotation(0);  // vertical (240 de ancho x 320 de alto)
 
     tft.fillScreen(ILI9341_BLACK);
     tft.setTextSize(2);
@@ -1339,15 +1505,22 @@ void setup() {
 
     empezarAnimPrincipal(ANIM_SALUDO, 2500);  // Roberto saluda al prender
     irA(P_PRINCIPAL);
-    WiFi.begin(ssid, password);
+    WiFi.begin(ssid, password);  // empieza a conectar, pero no espera (eso lo hace la tarea de red)
 
     // La red corre aparte (nucleo 0): Roberto ya se puede usar mientras conecta.
     // Prioridad 0 (la mas baja): el cifrado HTTPS tarda varios segundos y si no
     // deja descansar al nucleo 0, el "watchdog" cree que se colgo y reinicia la placa.
+    // Cola con lugar para 8 pedidos. Despues se lanza tareaRed: 16384 bytes de memoria
+    // para ella, prioridad minima, en el nucleo 0.
     colaAcciones = xQueueCreate(8, sizeof(Pedido));
     xTaskCreatePinnedToCore(tareaRed, "red", 16384, nullptr, tskIDLE_PRIORITY, nullptr, 0);
 }
 
+// loop(): se repite para siempre. En cada vuelta:
+//   1. lee los 3 botones (nav/sel/back = true solo si se acaban de apretar)
+//   2. si llegaron stats nuevos, actualiza lo que se ve
+//   3. una vez por segundo, revisa la agenda
+//   4. segun la pantalla actual, anima y reacciona a los botones (el switch)
 void loop() {
     bool nav = sePresiono(PIN_NAV, navAnterior);
     bool sel = sePresiono(PIN_SELECT, selectAnterior);
@@ -1372,6 +1545,7 @@ void loop() {
         revisarAgenda();
     }
 
+    // Que hacer segun la pantalla en la que estamos
     switch (pantallaActual) {
         case P_PRINCIPAL:
             animarPrincipal();
@@ -1381,12 +1555,14 @@ void loop() {
         case P_MENU:
             if (nav) {
                 int anterior = cursorMenu;
-                cursorMenu = (cursorMenu + 1) % 4;
+                cursorMenu = (cursorMenu + 1) % 4;  // % 4: despues del ultimo vuelve al primero
+                // se repintan solo los dos circulos que cambian: el que pierde la flecha y el que la gana
                 dibujarCirculoMenu(anterior);
                 dibujarCirculoMenu(cursorMenu);
             }
             if (back) irA(P_PRINCIPAL);
             if (sel) {
+                // 0 = Comida, 1 = Dormir, 2 = Jugar, 3 = Info
                 if (cursorMenu == 0) irA(P_COMIDA);
                 else if (cursorMenu == 1) {
                     if (suenoActual >= 100) {
@@ -1412,8 +1588,8 @@ void loop() {
             break;
 
         case P_COCINA: {
-            unsigned long pasado = millis() - cocinaInicio;
-            int frame = pasado / 300 % N_COMER;
+            unsigned long pasado = millis() - cocinaInicio;  // ms desde que empezo la escena
+            int frame = pasado / 300 % N_COMER;               // cambia de dibujo cada 300 ms
             // la ultima mordida llega un poco antes del final, para que se vea el plato vacio
             int mordidas = min((int)(pasado * (MORDIDAS + 1) / DURACION_CINEMATICA), MORDIDAS);
             // solo se repinta cuando algo cambia (antes era la pantalla entera cada 50 ms)
@@ -1425,6 +1601,7 @@ void loop() {
             }
 
             if (pasado > DURACION_CINEMATICA) {
+                // la accion se manda recien al terminar de comer, no al elegir la comida
                 enviarAccion("alimentar");
                 empezarAnimPrincipal(ANIM_FESTEJO, 1500);
                 irA(P_PRINCIPAL);
@@ -1457,7 +1634,7 @@ void loop() {
                 dibujarZonaHablar(frame);
             }
             if (nav) {
-                cursorAviso = 1 - cursorAviso;
+                cursorAviso = 1 - cursorAviso;  // alterna entre 0 (Si) y 1 (Mas tarde)
                 dibujarOpcionAviso(0);
                 dibujarOpcionAviso(1);
             }

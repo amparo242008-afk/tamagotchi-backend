@@ -19,6 +19,8 @@ LADO = 24
 
 
 def leer_sprite(ruta):
+    # Si el PNG se exporto agrandado (ej. 96x96 = x4), se toma 1 de cada 4 pixeles
+    # para volver a 24x24. Devuelve una grilla 24x24 de colores (None = transparente).
     ancho, alto, filas = leer_png(ruta, con_alfa=True)
     escala = ancho // LADO
     if ancho != alto or escala * LADO != ancho:
@@ -27,6 +29,7 @@ def leer_sprite(ruta):
 
 
 def nombre_c(ruta):
+    # "imagenes/robertocorriendo1.png" -> "robertocorriendo1" (el nombre del array en C)
     return os.path.splitext(os.path.basename(ruta))[0].split('.')[0]
 
 
@@ -35,17 +38,21 @@ def main():
         sys.exit('Uso: python png_a_sprite.py sprite1.png [sprite2.png ...]')
     for ruta in sys.argv[1:]:
         pixeles = leer_sprite(ruta)
+        # todos los colores distintos que usa el dibujo
         colores = {a565(*p) for fila in pixeles for p in fila if p is not None}
         nombre = nombre_c(ruta)
+        # <= entre conjuntos = "estan todos incluidos en": si solo usa colores de Roberto
         if colores <= set(PALETA_ROBERTO):
             letras = PALETA_ROBERTO
             print(f'// {nombre} (paleta de Roberto)')
         else:
+            # paleta nueva: a cada color se le da una letra (A, B, C...)
             letras = {c: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[i] for i, c in enumerate(sorted(colores))}
             mayus = nombre.upper()
             print(f'const char PALETA_{mayus}[] = "{"".join(letras.values())}";')
             print(f'const uint16_t PALETA_{mayus}_COLORES[] = {{{", ".join("0x%04X" % c for c in letras)}}};')
             print(f'const int PALETA_{mayus}_N = {len(letras)};')
+        # la grilla: cada pixel transparente es '.', cada color su letra
         print(f'const char* const spr_{nombre}[SPR_H] = {{')
         for fila in pixeles:
             print('  "' + ''.join('.' if p is None else letras[a565(*p)] for p in fila) + '",')

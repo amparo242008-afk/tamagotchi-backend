@@ -12,7 +12,12 @@ import zlib
 
 
 def leer_png(ruta, con_alfa=False):
+    # Lee un PNG "a mano" (sin instalar librerias) y devuelve (ancho, alto, filas),
+    # donde filas[y][x] es el color (r, g, b) de cada pixel.
     # con_alfa=True: los pixeles transparentes vuelven como None
+    #
+    # Un PNG por dentro es una lista de "pedazos" (chunks): IHDR dice el tamano,
+    # PLTE trae la paleta (si la usa), IDAT trae los pixeles comprimidos, IEND = fin.
     datos = open(ruta, 'rb').read()
     if datos[:8] != b'\x89PNG\r\n\x1a\n':
         sys.exit('No es un PNG: ' + ruta)
@@ -31,8 +36,11 @@ def leer_png(ruta, con_alfa=False):
             break
     if bits != 8 or entrelazado:
         sys.exit('PNG no soportado (tiene que ser 8 bits, sin entrelazar)')
+    # bpp = cuantos bytes ocupa cada pixel segun el tipo de color (6 = RGBA = 4 bytes)
     bpp = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[tipo_color]
-    crudo = zlib.decompress(idat)
+    crudo = zlib.decompress(idat)  # los pixeles vienen comprimidos con zlib
+    # Cada fila empieza con un numero de "filtro": el PNG guarda cada byte como la
+    # diferencia con el pixel de al lado o el de arriba. Aca se deshace eso.
     paso = ancho * bpp
     filas, anterior, p = [], bytearray(paso), 0
     for _ in range(alto):
@@ -52,6 +60,7 @@ def leer_png(ruta, con_alfa=False):
                 pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
                 linea[x] = (linea[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
         anterior = linea
+        # pasar los bytes de la fila a colores (r, g, b)
         fila = []
         for x in range(ancho):
             px = linea[x * bpp:(x + 1) * bpp]
@@ -68,6 +77,8 @@ def leer_png(ruta, con_alfa=False):
 
 
 def a565(r, g, b):
+    # Color normal (0-255 cada uno) -> RGB565, el formato de 16 bits de la pantalla:
+    # se queda con los 5 bits mas importantes del rojo, 6 del verde y 5 del azul.
     return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
 
 
@@ -77,6 +88,9 @@ def main():
     entrada, salida, nombre = sys.argv[1], sys.argv[2], sys.argv[3].upper()
     ancho, alto, filas = leer_png(entrada)
 
+    # La compresion RLE: se recorre la imagen como un libro (fila por fila) y
+    # mientras el color se repite solo se suma 1 a la cuenta. Cuando cambia, run nuevo.
+    # (El tope 65535 es lo maximo que entra en un uint16_t del ESP32.)
     colores, conteos = [], []
     for fila in filas:
         for px in fila:
@@ -87,6 +101,7 @@ def main():
                 colores.append(c)
                 conteos.append(1)
 
+    # Escribe los numeros de a 13 por renglon, para que el .h se pueda leer
     def bloque(valores, formato):
         lineas = []
         for i in range(0, len(valores), 13):
