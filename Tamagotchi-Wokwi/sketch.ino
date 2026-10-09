@@ -137,6 +137,7 @@ enum Actividad { ACT_COMIDA, ACT_HIGIENE, ACT_DORMIR };
 // necesita recordar de ese rango HOY.
 struct Rango {
     char clave[16];
+    char pregunta[48];           // lo que dice Roberto, ej. "¿Ya almorzaste?" (de rutina.json)
     Actividad actividad;
     int desde, hasta;            // minutos del dia (ej. 8:30 = 510); hasta < desde = cruza la medianoche
     bool confirmado;             // ya dijo "si" en esta vuelta del rango
@@ -557,6 +558,7 @@ void descargarRutina() {
                 if (n >= MAX_RANGOS) break;
                 Rango& rango = rangos[n];
                 strlcpy(rango.clave, r["clave"] | "", sizeof(rango.clave));
+                strlcpy(rango.pregunta, r["pregunta"] | "", sizeof(rango.pregunta));
                 const char* act = r["actividad"] | "comida";
                 rango.actividad = strcmp(act, "dormir") == 0 ? ACT_DORMIR
                                 : strcmp(act, "higiene") == 0 ? ACT_HIGIENE : ACT_COMIDA;
@@ -1344,7 +1346,7 @@ void dibujarJugarFin() {
 }
 
 // ---------- Agenda: Roberto pregunta "¿ya comiste?" ----------
-// Pantalla: el living, la burbuja con el icono de la actividad y "?", Roberto abajo,
+// Pantalla: el living, la burbuja con la pregunta (ej. "¿Ya almorzaste?"), Roberto abajo,
 // y dos plaquitas: "Si" / "Mas tarde". Sin texto de reproche.
 #define AVISO_OPC_Y 292
 #define AVISO_OPC_H 24
@@ -1352,13 +1354,6 @@ void dibujarJugarFin() {
 const int avisoOpcX[2] = {20, 96};
 const int avisoOpcW[2] = {66, 130};
 const char* const avisoOpcTexto[2] = {"S\xA1", "M\xA0s tarde"};  // \xA1 = i con tilde, \xA0 = a con tilde
-
-// Dibuja un icono de 24x24 (los del menu) agrandado
-void dibujarIconoEn(Adafruit_GFX &g, int x, int y, const char* const* icono, uint16_t color, int escala) {
-    for (int fy = 0; fy < 24; fy++)
-        for (int fx = 0; fx < 24; fx++)
-            if (icono[fy][fx] == 'X') g.fillRect(x + fx * escala, y + fy * escala, escala, escala, color);
-}
 
 // Una plaquita ("Si" o "Mas tarde"), con flechita si es la elegida
 void dibujarOpcionAviso(int i) {
@@ -1383,27 +1378,19 @@ void dibujarOpcionAviso(int i) {
     terminarZona(lienzo, avisoOpcX[i], AVISO_OPC_Y);
 }
 
-// Pantalla completa de la pregunta. El icono depende de la actividad del rango.
+// Lo que pregunta Roberto: el texto de rutina.json, o uno general si no tiene
+const char* textoAviso(const Rango& r) {
+    if (r.pregunta[0]) return r.pregunta;
+    if (r.actividad == ACT_COMIDA) return "¿Ya comiste?";
+    if (r.actividad == ACT_DORMIR) return "¿Vamos a dormir?";
+    return "¿Te bañaste?";
+}
+
+// Pantalla completa de la pregunta: Roberto la dice con la burbuja, como en Info
 void dibujarAviso() {
     Rango& r = rangos[rangoAviso];  // & = "r" es el mismo rango, no una copia
     dibujarFondo();
-    dibujarSpriteGenerico(BURBUJA_X, BURBUJA_Y, spr_burbujatexto, PALETA_BURBUJATEXTO,
-                          PALETA_BURBUJATEXTO_COLORES, PALETA_BURBUJATEXTO_N, BURBUJA_ESCALA);
-    // icono grande + "?" en el medio de la burbuja
-    uint16_t tinta = PALETA_COLORES[0];
-    int ix = 69, iy = 56;
-    if (r.actividad == ACT_COMIDA) dibujarIconoEn(tft, ix, iy, ICONO_COMIDA, tinta, 3);
-    else if (r.actividad == ACT_DORMIR) dibujarIconoEn(tft, ix, iy, ICONO_DORMIR, tinta, 3);
-    else {
-        // higiene: gota de agua provisoria, hasta que este el icono de bano dibujado
-        uint16_t agua = tft.color565(77, 160, 230);
-        tft.fillCircle(ix + 36, iy + 46, 22, agua);
-        tft.fillTriangle(ix + 15, iy + 40, ix + 57, iy + 40, ix + 36, iy + 2, agua);
-    }
-    tft.setTextSize(5);
-    tft.setTextColor(tinta);
-    tft.setCursor(ix + 80, iy + 18);
-    tft.print("?");
+    dibujarBurbuja(textoAviso(r));  // dibuja la burbuja y el texto centrado (pasa las tildes a la pantalla)
     for (int i = 0; i < 2; i++) dibujarOpcionAviso(i);
     hablarInicio = millis();
     hablarDuracion = 1200;
@@ -1589,10 +1576,10 @@ void animarBienvenida(bool boton) {
 
 // ---------- Bano: Roberto se bana ----------
 // Se llega desde el menu (circulo de la banadera) o desde el "Si" del aviso de higiene.
-// Roberto trae su propia banadera (SPR_BANO): se dibuja encima de la banadera del fondo,
+// Roberto (SPR_BANO, sin banadera propia) va metido en la banadera del fondo:
 // alternando los dos dibujos (las gotitas de agua se mueven).
-#define BANO_ROB_X 84
-#define BANO_ROB_Y 86
+#define BANO_ROB_X 85                  // sentado adentro de la banadera del fondo
+#define BANO_ROB_Y 100
 #define BANO_ROB_ESCALA 5
 #define BANO_ROB_LADO (24 * BANO_ROB_ESCALA)
 #define BANO_FRAME_MS 400              // cada cuanto cambia el dibujo

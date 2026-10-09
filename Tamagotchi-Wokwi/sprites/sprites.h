@@ -539,7 +539,8 @@ const char* const* const SPR_ABURRIDO[] = {spr_robertoaburrido};
 const char* const* const SPR_BOSTEZO[] = {spr_robertobostesando};
 #define N_BOSTEZO 1
 
-// Roberto en la banadera (trae su propia banadera, va encima de la del fondo del bano).
+// Roberto en la banadera del fondo del bano: se le saco la banadera propia,
+// quedan el cuerpo hasta la cintura, las gotitas y la espuma (filas de abajo).
 // Paleta propia: tiene el agua y la banadera. Los dos dibujos usan la misma.
 const char PALETA_BANO[] = "ABCDEFGH";
 const uint16_t PALETA_BANO_COLORES[] = {0x222A, 0x2966, 0x469E, 0x4E1D, 0xB6DA, 0xD79E, 0xDDC7, 0xFDD7};
@@ -559,14 +560,14 @@ const char* const spr_robertobano1[SPR_H] = {
   ".......BGGGGGGGGB.BB....",
   "......BBGGGGGGGGBB......",
   "....BB.BGGGGGGGGB.......",
-  "....AAABBBBBBBBBBAAA....",
-  "...FFCCCCCCCCCCCCCCAF...",
-  "..FFFAAAAFFAAAFAAAAFF...",
-  "....AEEEFFEEEFEFEEEAF...",
-  "....AEEEEEEEEEEEEEEA....",
-  ".....AEEEEEEEEEEEEA.....",
-  "......AAAAAAAAAAAA......",
-  ".....AA..........AA.....",
+  "........................",
+  "...FF...............F...",
+  "..FFF....FF...F....FF...",
+  "........FF...F.F....F...",
+  "........................",
+  "........................",
+  "........................",
+  "........................",
   "........................",
   "........................",
 };
@@ -585,14 +586,14 @@ const char* const spr_robertobano2[SPR_H] = {
   ".....B.BGGBBBGGGB.B.....",
   "......BBGGGGGGGGBB......",
   ".......BGGGGGGGGB.......",
-  "....AAAABBBBBBBBAAAA....",
-  "...FCCCCCCCCCCCCCCCCF...",
-  "..FFFAAFAAFFAAAAAFFAFF..",
-  "..F.AEFEEEEFEEEEEFEAF...",
-  ".F..AEEFEEEEEEEEEEEA.F..",
-  ".....AEEEEEEEEEEEEA.....",
-  "......AAAAAAAAAAAA......",
-  ".....AA..........AA.....",
+  "........................",
+  "...F................F...",
+  "..FFF..F..FF.....FF.FF..",
+  "..F...F....F.....F..F...",
+  ".F.....F.............F..",
+  "........................",
+  "........................",
+  "........................",
   "........................",
   "........................",
 };

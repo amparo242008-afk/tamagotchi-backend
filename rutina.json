@@ -3,10 +3,10 @@
   "max_avisos": 3,
   "silencio": { "desde": "22:00", "hasta": "08:00" },
   "rangos": [
-    { "clave": "desayuno", "actividad": "comida",  "desde": "08:00", "hasta": "11:00" },
-    { "clave": "almuerzo", "actividad": "comida",  "desde": "12:00", "hasta": "15:00" },
-    { "clave": "cena",     "actividad": "comida",  "desde": "19:00", "hasta": "22:00" },
-    { "clave": "bano",     "actividad": "higiene", "desde": "08:00", "hasta": "21:00" },
-    { "clave": "dormir",   "actividad": "dormir",  "desde": "21:00", "hasta": "01:00" }
+    { "clave": "desayuno", "actividad": "comida",  "desde": "08:00", "hasta": "11:00", "pregunta": "¿Ya desayunaste?" },
+    { "clave": "almuerzo", "actividad": "comida",  "desde": "12:00", "hasta": "15:00", "pregunta": "¿Ya almorzaste?" },
+    { "clave": "cena",     "actividad": "comida",  "desde": "19:00", "hasta": "22:00", "pregunta": "¿Ya cenaste?" },
+    { "clave": "bano",     "actividad": "higiene", "desde": "08:00", "hasta": "21:00", "pregunta": "¿Te bañaste hoy?" },
+    { "clave": "dormir",   "actividad": "dormir",  "desde": "21:00", "hasta": "01:00", "pregunta": "¿Vamos a dormir?" }
   ]
 }
