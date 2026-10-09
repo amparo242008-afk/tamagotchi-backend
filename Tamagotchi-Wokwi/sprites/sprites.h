@@ -538,3 +538,63 @@ const char* const* const SPR_ABURRIDO[] = {spr_robertoaburrido};
 #define N_ABURRIDO 1
 const char* const* const SPR_BOSTEZO[] = {spr_robertobostesando};
 #define N_BOSTEZO 1
+
+// Roberto en la banadera (trae su propia banadera, va encima de la del fondo del bano).
+// Paleta propia: tiene el agua y la banadera. Los dos dibujos usan la misma.
+const char PALETA_BANO[] = "ABCDEFGH";
+const uint16_t PALETA_BANO_COLORES[] = {0x222A, 0x2966, 0x469E, 0x4E1D, 0xB6DA, 0xD79E, 0xDDC7, 0xFDD7};
+const int PALETA_BANO_N = 8;
+const char* const spr_robertobano1[SPR_H] = {
+  "...................D....",
+  ".D..D.....H........D.D..",
+  "D..D..B...HH......D..D..",
+  "D...D..BHHBBBB..BB....D.",
+  ".D.D....BHBBBBBB.....D..",
+  "...D...BBBBBBBBBB..D....",
+  "......BGGGGGGGGGGB......",
+  "......BGBGGGGGGBGB......",
+  "......BGGGGBGGGGGB......",
+  "......BGGBBGBBGGGB......",
+  "......BGGGGGGGGGGB......",
+  ".......BGGGGGGGGB.BB....",
+  "......BBGGGGGGGGBB......",
+  "....BB.BGGGGGGGGB.......",
+  "....AAABBBBBBBBBBAAA....",
+  "...FFCCCCCCCCCCCCCCAF...",
+  "..FFFAAAAFFAAAFAAAAFF...",
+  "....AEEEFFEEEFEFEEEAF...",
+  "....AEEEEEEEEEEEEEEA....",
+  ".....AEEEEEEEEEEEEA.....",
+  "......AAAAAAAAAAAA......",
+  ".....AA..........AA.....",
+  "........................",
+  "........................",
+};
+const char* const spr_robertobano2[SPR_H] = {
+  "........................",
+  "....D.....H........D....",
+  "D..D..B...HH......D..D..",
+  "D...D..BHHBBBB..BB....D.",
+  ".D.D....BHBBBBBB.....D..",
+  "...D...BBBBBBBBBB..D....",
+  ".D....BGGGGGGGGGGB...D..",
+  ".DD...BGBGGGGGGBGB...D..",
+  "..D...BGGGGBGGGGGB......",
+  "......BGGBBBBBGGGB......",
+  "....B.BGGGBHBGGGGB.BB...",
+  ".....B.BGGBBBGGGB.B.....",
+  "......BBGGGGGGGGBB......",
+  ".......BGGGGGGGGB.......",
+  "....AAAABBBBBBBBAAAA....",
+  "...FCCCCCCCCCCCCCCCCF...",
+  "..FFFAAFAAFFAAAAAFFAFF..",
+  "..F.AEFEEEEFEEEEEFEAF...",
+  ".F..AEEFEEEEEEEEEEEA.F..",
+  ".....AEEEEEEEEEEEEA.....",
+  "......AAAAAAAAAAAA......",
+  ".....AA..........AA.....",
+  "........................",
+  "........................",
+};
+const char* const* const SPR_BANO[] = {spr_robertobano1, spr_robertobano2};
+#define N_BANO 2

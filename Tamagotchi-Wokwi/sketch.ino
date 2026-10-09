@@ -45,6 +45,8 @@
 #include "fondos/fondo_info.h"
 #include "fondos/parque.h"
 #include "sprites/ObjetosJuego.h"
+#include "fondos/bano.h"
+#include "fondos/bienvenida.h"
 
 // ---------- 2. Configuracion ----------
 // Red WiFi. "Wokwi-GUEST" es la red falsa del simulador; con la placa real
@@ -112,6 +114,7 @@ volatile int dopaminaActual = 100;
 volatile bool statsNuevos = false;           // "llegaron stats, actualiza la pantalla" (lo baja el loop)
 volatile bool durmiendoServidor = false;      // el servidor dice que Roberto esta dormido
 volatile bool primeraConsulta = true;         // para retomar el sueno si se reinicio la placa
+bool statsRecibidos = false;                  // ya llego al menos una vez la respuesta del servidor
 volatile uint32_t intervaloConsultaMs = 60000;  // cada cuanto se piden los stats (mas seguido al dormir)
 
 // Cola de acciones para mandar al servidor sin trabar la pantalla.
@@ -159,19 +162,31 @@ unsigned long avisoInicio = 0;
 // ---------- Pantallas ----------
 // Todas las pantallas que existen. pantallaActual dice en cual estamos;
 // para cambiar se usa irA(P_...), nunca se cambia pantallaActual a mano.
-enum Pantalla { P_PRINCIPAL, P_MENU, P_COMIDA, P_COCINA, P_DORMIR, P_INFO, P_INFO_RESPUESTA, P_JUGAR, P_JUGAR_FIN, P_AVISO };
-Pantalla pantallaActual = P_PRINCIPAL;
+enum Pantalla { P_PRINCIPAL, P_MENU, P_COMIDA, P_COCINA, P_DORMIR, P_INFO, P_INFO_RESPUESTA, P_JUGAR, P_JUGAR_FIN, P_AVISO,
+                P_BIENVENIDA, P_BANO };
+Pantalla pantallaActual = P_BIENVENIDA;
 
 // Los "cursor..." guardan que opcion esta elegida en cada pantalla (0 = la primera)
 int cursorMenu = 0;
-const char* menuItems[4] = {"Comida", "Dormir", "Jugar", "Info"};
+// Arriba las tres necesidades (comida, bano, dormir), abajo jugar e info
+#define N_MENU 5
+enum OpcionMenu { MENU_COMIDA, MENU_BANO, MENU_DORMIR, MENU_JUGAR, MENU_INFO };
 // Centros de los circulos de fondo_menu.h (medidos sobre el dibujo)
-const int menuX[4] = {56, 58, 182, 182};
-const int menuY[4] = {49, 144, 143, 49};
+const int menuX[N_MENU] = {40, 120, 200, 80, 160};
+const int menuY[N_MENU] = {49, 49, 49, 144, 144};
 
 int cursorComida = 0;
 int comidaElegida = 0;  // copia de cursorComida al entrar a la cocina
-const char* comidaItems[2] = {"Leche", "Torta"};
+// Cada comida: su nombre, su dibujo y su paleta (estan en sprites/comida.h).
+// Para sumar una comida nueva alcanza con agregar una fila aca.
+struct Comida { const char* nombre; const char* const* sprite; const char* letras; const uint16_t* colores; int n; };
+const Comida comidas[] = {
+    {"Leche", SPR_LECHE, PALETA_LECHE, PALETA_LECHE_COLORES, PALETA_LECHE_N},
+    {"Torta", SPR_TORTA, PALETA_TORTA, PALETA_TORTA_COLORES, PALETA_TORTA_N},
+    {"Gaseosa", SPR_GASEOSA, PALETA_GASEOSA, PALETA_GASEOSA_COLORES, PALETA_GASEOSA_N},
+    {"Hamburguesa", SPR_HAMBURGUESA, PALETA_HAMBURGUESA, PALETA_HAMBURGUESA_COLORES, PALETA_HAMBURGUESA_N},
+};
+const int N_COMIDAS = sizeof(comidas) / sizeof(comidas[0]);  // cuantas filas tiene la tabla
 
 int cursorInfo = 0;
 // Las preguntas se escriben en preguntas.json (en el servidor) y Roberto las baja al prender.
@@ -238,6 +253,7 @@ const Nota SONIDO_CORAZON[]  = {{1319, 40}, {1760, 60}, {0, 0}};
 const Nota SONIDO_BOMBA[]    = {{220, 120}, {0, 0}};
 const Nota SONIDO_AVISO[]    = {{MI5, 100}, {0, 60}, {SOL5, 100}, {0, 60}, {DO6, 180}, {0, 0}};
 const Nota SONIDO_NO[]       = {{MI5, 80}, {0, 40}, {DO5, 120}, {0, 0}};
+const Nota SONIDO_BURBUJA[]  = {{1200, 15}, {1700, 25}, {0, 0}};
 
 // ---------- Reloj (hora real por internet, NTP) ----------
 // El ESP32 no tiene pila de reloj: al prender no sabe que hora es.
@@ -813,19 +829,22 @@ void dibujarCartaComida() {
     int lado = 24 * COMIDA_GRANDE_ESCALA;
     int sx = (CARTA_W - lado) / 2;
     int sy = 8;
-    if (cursorComida == 0) dibujarSpriteEn(*lienzo, sx, sy, SPR_LECHE, PALETA_LECHE, PALETA_LECHE_COLORES, PALETA_LECHE_N, COMIDA_GRANDE_ESCALA);
-    else dibujarSpriteEn(*lienzo, sx, sy, SPR_TORTA, PALETA_TORTA, PALETA_TORTA_COLORES, PALETA_TORTA_N, COMIDA_GRANDE_ESCALA);
+    const Comida& c = comidas[cursorComida];
+    dibujarSpriteEn(*lienzo, sx, sy, c.sprite, c.letras, c.colores, c.n, COMIDA_GRANDE_ESCALA);
 
-    // plaquita con el nombre
-    int px = (CARTA_W - PLACA_W) / 2;
+    // plaquita con el nombre: se agranda si el nombre es largo (hasta el ancho del recuadro).
+    // Letra grande = 12 px por letra; si ni asi entra (ej. "Hamburguesa"), letra chica (6 px).
+    int tam = (int)strlen(c.nombre) * 12 <= CARTA_W - 8 ? 2 : 1;
+    int anchoTexto = (int)strlen(c.nombre) * 6 * tam;
+    int placaW = max(PLACA_W, min(anchoTexto + 12, CARTA_W));
+    int px = (CARTA_W - placaW) / 2;
     int py = PLACA_Y - CARTA_Y;
-    lienzo->fillRect(px, py, PLACA_W, PLACA_H, borde);
-    lienzo->fillRect(px + 2, py + 2, PLACA_W - 4, PLACA_H - 4, amarillo);
-    const char* nombre = comidaItems[cursorComida];
-    lienzo->setTextSize(2);
+    lienzo->fillRect(px, py, placaW, PLACA_H, borde);
+    lienzo->fillRect(px + 2, py + 2, placaW - 4, PLACA_H - 4, amarillo);
+    lienzo->setTextSize(tam);
     lienzo->setTextColor(naranja);
-    lienzo->setCursor((CARTA_W - (int)strlen(nombre) * 12) / 2 + 1, py + 4);
-    lienzo->print(nombre);
+    lienzo->setCursor((CARTA_W - anchoTexto) / 2 + 1, tam == 2 ? py + 4 : py + 7);
+    lienzo->print(c.nombre);
 
     terminarZona(lienzo, CARTA_X, CARTA_Y);
 }
@@ -868,8 +887,8 @@ void dibujarZonaCocina(int frame, int mordidas) {
     int cy = COMIDA_MESA_Y - COCINA_ZONA_Y;
     int colMax = 24 - (24 * mordidas) / MORDIDAS;  // cuantas columnas de la comida quedan
     if (colMax > 0) {
-        if (comidaElegida == 0) dibujarSpriteEn(*lienzo, cx, cy, SPR_LECHE, PALETA_LECHE, PALETA_LECHE_COLORES, PALETA_LECHE_N, COMIDA_ESCALA, 1.0, colMax);
-        else dibujarSpriteEn(*lienzo, cx, cy, SPR_TORTA, PALETA_TORTA, PALETA_TORTA_COLORES, PALETA_TORTA_N, COMIDA_ESCALA, 1.0, colMax);
+        const Comida& c = comidas[comidaElegida];
+        dibujarSpriteEn(*lienzo, cx, cy, c.sprite, c.letras, c.colores, c.n, COMIDA_ESCALA, 1.0, colMax);
     }
     dibujarSpriteEn(*lienzo, ROBERTO_COCINA_X - COCINA_ZONA_X, ROBERTO_COCINA_Y - COCINA_ZONA_Y, SPR_COMER[frame],
                     PALETA_LETRAS, PALETA_COLORES, PALETA_N, ROBERTO_COCINA_ESCALA);
@@ -1118,7 +1137,11 @@ void dibujarInfoRespuesta() {
 #define JUEGO_ROB_ESCALA 4
 #define JUEGO_ROB_LADO (24 * JUEGO_ROB_ESCALA)
 #define JUEGO_ROB_Y 208            // con los pies sobre el caminito
-#define JUEGO_ROB_VEL 5
+#define JUEGO_ROB_VEL 7            // pixeles por cuadro que avanza Roberto
+#define JUEGO_ANIM_MS 90           // cada cuanto cambia el dibujo de correr (menos = piernas mas rapidas)
+#define JUEGO_ESPERA_MIN 900       // tiempo entre una cosa que cae y la siguiente (ms)
+#define JUEGO_ESPERA_MAX 1500
+#define JUEGO_SEPARACION_X 70      // distancia minima (en x) con la cosa anterior
 #define JUEGO_ROB_MIN_X (-20)      // el cuerpo ocupa las columnas 5..16 del sprite
 #define JUEGO_ROB_MAX_X (240 - 68)
 #define HUD_X 6                    // contador de corazones, arriba a la izquierda
@@ -1136,6 +1159,7 @@ int robFrame = 0;
 int corazones = 0;
 unsigned long juegoUltimoFrame = 0;
 unsigned long juegoProximoObjeto = 0;
+int juegoUltimoX = -100;        // donde cayo la ultima cosa (para no tirar otra pegada)
 
 // Indice del fondo del parque: en que run empieza cada fila. Asi se puede
 // repintar un pedacito sin recorrer los ~14.000 runs desde el principio.
@@ -1237,7 +1261,7 @@ void pasoJuego() {
     if (izq && !der) { robX -= JUEGO_ROB_VEL; robMiraDerecha = false; }
     if (der && !izq) { robX += JUEGO_ROB_VEL; robMiraDerecha = true; }
     robX = constrain(robX, JUEGO_ROB_MIN_X, JUEGO_ROB_MAX_X);
-    robFrame = (izq != der) ? (millis() / 120) % N_CORRER : 0;
+    robFrame = (izq != der) ? (millis() / JUEGO_ANIM_MS) % N_CORRER : 0;
     if (robX != viejoX || robFrame != viejoFrame || robMiraDerecha != viejoMira) {
         // se repinta desde donde estaba hasta donde quedo (asi se borra el Roberto viejo)
         int x0 = min(robX, viejoX);
@@ -1281,12 +1305,18 @@ void pasoJuego() {
             if (objetos[i].activo) continue;  // busca un lugar libre
             objetos[i].activo = true;
             objetos[i].corazon = random(100) < PROB_CORAZON;
-            objetos[i].x = random(0, 240 - OBJ_LADO);
+            // que no caiga pegado al anterior: se sortea de nuevo hasta que quede lejos
+            int x = random(0, 240 - OBJ_LADO);
+            for (int intento = 0; intento < 8 && abs(x - juegoUltimoX) < JUEGO_SEPARACION_X; intento++)
+                x = random(0, 240 - OBJ_LADO);
+            objetos[i].x = x;
+            juegoUltimoX = x;
             objetos[i].y = -OBJ_LADO;
-            objetos[i].vel = 2.0 + random(0, 16) / 10.0;  // entre 2 y 3,5 pixeles por cuadro
+            // todas caen casi igual de rapido: si no, las rapidas alcanzan a las lentas y se amontonan
+            objetos[i].vel = 2.5 + random(0, 6) / 10.0;  // entre 2,5 y 3 pixeles por cuadro
             break;
         }
-        juegoProximoObjeto = millis() + random(600, 1100);
+        juegoProximoObjeto = millis() + random(JUEGO_ESPERA_MIN, JUEGO_ESPERA_MAX);
     }
 }
 
@@ -1404,6 +1434,8 @@ void responderSi() {
     } else if (r.actividad == ACT_DORMIR && suenoActual < 100) {
         enviarAccion("dormir");
         irA(P_DORMIR);
+    } else if (r.actividad == ACT_HIGIENE) {
+        irA(P_BANO);  // se banan juntos
     } else {
         empezarAnimPrincipal(ANIM_FESTEJO, 1500);
         irA(P_PRINCIPAL);
@@ -1454,6 +1486,137 @@ void revisarAgenda() {
     }
 }
 
+// ---------- Bienvenida: Roberto saluda afuera y entra a la casa ----------
+// Al prender, Roberto esta en la loma saludando. Con cualquier boton sale
+// corriendo hacia la derecha (entra a la casa) y aparece el living.
+#define BIENV_ROB_Y 150
+#define BIENV_ROB_LADO (24 * 5)        // Roberto con escala 5 = 120 px
+#define BIENV_ROB_VEL 8                // pixeles por cuadro al correr
+#define BIENV_PLACA_X 60               // plaquita "Entrar" (mismo estilo que el aviso)
+#define BIENV_PLACA_Y 284
+#define BIENV_PLACA_W 120
+#define BIENV_PLACA_H 24
+
+bool bienvEntrando = false;            // false = saludando, true = corriendo hacia la casa
+int bienvRobX = 60;
+const char* const* bienvSpriteDibujado = nullptr;
+int bienvFlechaDibujada = -1;
+unsigned long bienvUltimoPaso = 0;
+
+// Que dibujo de Roberto toca: saludando (quieto) o corriendo
+const char* const* spriteBienvenida() {
+    if (bienvEntrando) return SPR_CORRER[(millis() / 90) % N_CORRER];
+    return SPR_SALUDO[(millis() / 300) % N_SALUDO];
+}
+
+// Repinta la franja de Roberto desde x0, de ancho w (recortada a la pantalla)
+void dibujarZonaBienvenida(int x0, int w) {
+    if (x0 < 0) { w += x0; x0 = 0; }
+    if (x0 + w > 240) w = 240 - x0;
+    if (w <= 0) return;
+    GFXcanvas16* lienzo = empezarZona(FONDO_BIENVENIDA_COLOR, FONDO_BIENVENIDA_CONTEO, FONDO_BIENVENIDA_RUNS,
+                                      FONDO_BIENVENIDA_ANCHO, x0, BIENV_ROB_Y, w, BIENV_ROB_LADO, 1.0);
+    if (!lienzo) return;
+    // los sprites de correr miran a la izquierda: espejo = true para que corra a la derecha
+    dibujarSpriteEn(*lienzo, bienvRobX - x0, 0, bienvSpriteDibujado, PALETA_LETRAS, PALETA_COLORES,
+                    PALETA_N, 5, 1.0, 24, 24, bienvEntrando);
+    terminarZona(lienzo, x0, BIENV_ROB_Y);
+}
+
+// Plaquita "Entrar" con la flechita que titila (flecha = 1 visible, 0 apagada)
+void dibujarPlacaBienvenida(int flecha) {
+    GFXcanvas16* lienzo = empezarZona(FONDO_BIENVENIDA_COLOR, FONDO_BIENVENIDA_CONTEO, FONDO_BIENVENIDA_RUNS,
+                                      FONDO_BIENVENIDA_ANCHO, BIENV_PLACA_X, BIENV_PLACA_Y, BIENV_PLACA_W, BIENV_PLACA_H, 1.0);
+    if (!lienzo) return;
+    uint16_t borde = tft.color565(235, 203, 118);
+    uint16_t amarillo = tft.color565(248, 231, 121);
+    uint16_t naranja = tft.color565(235, 152, 102);
+    lienzo->fillRect(0, 0, BIENV_PLACA_W, BIENV_PLACA_H, borde);
+    lienzo->fillRect(2, 2, BIENV_PLACA_W - 4, BIENV_PLACA_H - 4, amarillo);
+    if (flecha) {
+        lienzo->fillTriangle(14, 5, 14, 18, 23, 11, ILI9341_WHITE);
+        lienzo->drawTriangle(14, 5, 14, 18, 23, 11, naranja);
+    }
+    lienzo->setTextSize(2);
+    lienzo->setTextColor(naranja);
+    lienzo->setCursor(32, 5);
+    lienzo->print("Entrar");
+    terminarZona(lienzo, BIENV_PLACA_X, BIENV_PLACA_Y);
+}
+
+void dibujarBienvenida() {
+    bienvEntrando = false;
+    bienvRobX = 60;
+    dibujarFondoRLE(FONDO_BIENVENIDA_COLOR, FONDO_BIENVENIDA_CONTEO, FONDO_BIENVENIDA_RUNS,
+                    FONDO_BIENVENIDA_ANCHO, FONDO_BIENVENIDA_ALTO, 1.0);
+    bienvSpriteDibujado = spriteBienvenida();
+    dibujarZonaBienvenida(bienvRobX, BIENV_ROB_LADO);
+    bienvFlechaDibujada = 1;
+    dibujarPlacaBienvenida(1);
+    sonar(SONIDO_SALUDO);
+}
+
+// Se llama en cada vuelta del loop mientras estamos en la bienvenida
+void animarBienvenida(bool boton) {
+    if (!bienvEntrando) {
+        // saludando: cambia el dibujo de la mano y titila la flecha de "Entrar"
+        const char* const* sprite = spriteBienvenida();
+        if (sprite != bienvSpriteDibujado) {
+            bienvSpriteDibujado = sprite;
+            dibujarZonaBienvenida(bienvRobX, BIENV_ROB_LADO);
+        }
+        int flecha = (millis() / 500) % 2;
+        if (flecha != bienvFlechaDibujada) {
+            bienvFlechaDibujada = flecha;
+            dibujarPlacaBienvenida(flecha);
+        }
+        if (boton) {
+            bienvEntrando = true;
+            bienvUltimoPaso = millis();
+        }
+        return;
+    }
+    // corriendo: ~30 cuadros por segundo, hasta salir por la derecha
+    if (millis() - bienvUltimoPaso < 33) return;
+    bienvUltimoPaso = millis();
+    int viejoX = bienvRobX;
+    bienvRobX += BIENV_ROB_VEL;
+    bienvSpriteDibujado = spriteBienvenida();
+    // se repinta desde donde estaba hasta donde quedo (asi se borra el Roberto viejo)
+    dibujarZonaBienvenida(viejoX, bienvRobX - viejoX + BIENV_ROB_LADO);
+    if (bienvRobX > 240) irA(P_PRINCIPAL);  // ya entro: aparece el living
+}
+
+// ---------- Bano: Roberto se bana ----------
+// Se llega desde el menu (circulo de la banadera) o desde el "Si" del aviso de higiene.
+// Roberto trae su propia banadera (SPR_BANO): se dibuja encima de la banadera del fondo,
+// alternando los dos dibujos (las gotitas de agua se mueven).
+#define BANO_ROB_X 84
+#define BANO_ROB_Y 86
+#define BANO_ROB_ESCALA 5
+#define BANO_ROB_LADO (24 * BANO_ROB_ESCALA)
+#define BANO_FRAME_MS 400              // cada cuanto cambia el dibujo
+#define BANO_DURACION 4000             // cuanto dura el bano (ms)
+
+unsigned long banoInicio = 0;
+int frameBanoDibujado = -1;
+
+void dibujarZonaBano(int frame) {
+    GFXcanvas16* lienzo = empezarZona(FONDO_BANO_COLOR, FONDO_BANO_CONTEO, FONDO_BANO_RUNS, FONDO_BANO_ANCHO,
+                                      BANO_ROB_X, BANO_ROB_Y, BANO_ROB_LADO, BANO_ROB_LADO, 1.0);
+    if (!lienzo) return;
+    dibujarSpriteEn(*lienzo, 0, 0, SPR_BANO[frame], PALETA_BANO, PALETA_BANO_COLORES, PALETA_BANO_N, BANO_ROB_ESCALA);
+    terminarZona(lienzo, BANO_ROB_X, BANO_ROB_Y);
+}
+
+void dibujarBano() {
+    banoInicio = millis();
+    frameBanoDibujado = 0;
+    dibujarFondoRLE(FONDO_BANO_COLOR, FONDO_BANO_CONTEO, FONDO_BANO_RUNS, FONDO_BANO_ANCHO, FONDO_BANO_ALTO, 1.0);
+    dibujarZonaBano(0);
+    sonar(SONIDO_BURBUJA);
+}
+
 // =====================================================================
 // 9. CAMBIAR DE PANTALLA
 // =====================================================================
@@ -1474,6 +1637,8 @@ void irA(int nueva) {
         case P_JUGAR: dibujarJugar(); break;
         case P_JUGAR_FIN: dibujarJugarFin(); break;
         case P_AVISO: dibujarAviso(); break;
+        case P_BIENVENIDA: dibujarBienvenida(); break;
+        case P_BANO: dibujarBano(); break;
     }
 }
 
@@ -1503,8 +1668,7 @@ void setup() {
     tft.setCursor(10, 10);
     tft.println("Iniciando Roberto...");
 
-    empezarAnimPrincipal(ANIM_SALUDO, 2500);  // Roberto saluda al prender
-    irA(P_PRINCIPAL);
+    irA(P_BIENVENIDA);  // Roberto saluda afuera y espera que aprieten un boton para entrar
     WiFi.begin(ssid, password);  // empieza a conectar, pero no espera (eso lo hace la tarea de red)
 
     // La red corre aparte (nucleo 0): Roberto ya se puede usar mientras conecta.
@@ -1532,12 +1696,14 @@ void loop() {
         statsNuevos = false;
         if (pantallaActual == P_MENU) dibujarStatsMenu();
         if (pantallaActual == P_DORMIR) dibujarBarraSueno();
-        // si la placa se reinicio mientras Roberto dormia, vuelve a la cama
-        if (primeraConsulta) {
-            primeraConsulta = false;
-            if (durmiendoServidor && suenoActual < 100 && pantallaActual == P_PRINCIPAL) irA(P_DORMIR);
-        }
+        statsRecibidos = true;
         // en la principal no hace falta: animarPrincipal() ya elige el sprite segun los stats
+    }
+    // si la placa se reinicio mientras Roberto dormia, vuelve a la cama.
+    // Se espera a que entre a la casa (si los stats llegaron durante la bienvenida, se revisa al entrar).
+    if (primeraConsulta && statsRecibidos && pantallaActual == P_PRINCIPAL) {
+        primeraConsulta = false;
+        if (durmiendoServidor && suenoActual < 100) irA(P_DORMIR);
     }
 
     if (millis() - ultimaRevisionAgenda > 1000) {
@@ -1555,16 +1721,16 @@ void loop() {
         case P_MENU:
             if (nav) {
                 int anterior = cursorMenu;
-                cursorMenu = (cursorMenu + 1) % 4;  // % 4: despues del ultimo vuelve al primero
+                cursorMenu = (cursorMenu + 1) % N_MENU;  // % N_MENU: despues del ultimo vuelve al primero
                 // se repintan solo los dos circulos que cambian: el que pierde la flecha y el que la gana
                 dibujarCirculoMenu(anterior);
                 dibujarCirculoMenu(cursorMenu);
             }
             if (back) irA(P_PRINCIPAL);
             if (sel) {
-                // 0 = Comida, 1 = Dormir, 2 = Jugar, 3 = Info
-                if (cursorMenu == 0) irA(P_COMIDA);
-                else if (cursorMenu == 1) {
+                if (cursorMenu == MENU_COMIDA) irA(P_COMIDA);
+                else if (cursorMenu == MENU_BANO) irA(P_BANO);
+                else if (cursorMenu == MENU_DORMIR) {
                     if (suenoActual >= 100) {
                         noTieneSueno();
                     } else {
@@ -1572,13 +1738,13 @@ void loop() {
                         irA(P_DORMIR);
                     }
                 }
-                else if (cursorMenu == 2) irA(P_JUGAR);
+                else if (cursorMenu == MENU_JUGAR) irA(P_JUGAR);
                 else irA(P_INFO);
             }
             break;
 
         case P_COMIDA:
-            if (nav) { cursorComida = (cursorComida + 1) % 2; dibujarCartaComida(); }
+            if (nav) { cursorComida = (cursorComida + 1) % N_COMIDAS; dibujarCartaComida(); }
             if (back) irA(P_MENU);
             if (sel) {
                 apretarBotonComer();
@@ -1645,6 +1811,25 @@ void loop() {
                 responderMasTarde();
             } else if (millis() - avisoInicio > AVISO_TIMEOUT_MS) {
                 irA(P_PRINCIPAL);  // nadie contesto: Roberto vuelve a lo suyo, sin anotar nada
+            }
+            break;
+        }
+
+        case P_BIENVENIDA:
+            animarBienvenida(sel || nav || back);
+            break;
+
+        case P_BANO: {
+            int frame = (millis() - banoInicio) / BANO_FRAME_MS % N_BANO;
+            if (frame != frameBanoDibujado) {
+                frameBanoDibujado = frame;
+                dibujarZonaBano(frame);
+                sonar(SONIDO_BURBUJA);  // "chapoteo" cada vez que se mueve el agua
+            }
+            if (millis() - banoInicio > BANO_DURACION) {
+                enviarAccion("banar");  // queda en el historial (como comer o dormir)
+                empezarAnimPrincipal(ANIM_FESTEJO, 1500);  // sale del bano festejando
+                irA(P_PRINCIPAL);
             }
             break;
         }

@@ -143,7 +143,7 @@ app.get('/estado', async (req, res) => {
 // ---------------------------------------------
 // 5. ENDPOINT: POST /accion
 // ---------------------------------------------
-// Body esperado: { "tipo": "alimentar" | "jugar" | "dormir" | "despertar" }
+// Body esperado: { "tipo": "alimentar" | "jugar" | "dormir" | "despertar" | "banar" }
 // - alimentar / jugar: suben su stat de una.
 // - dormir: Roberto se acuesta; el sueño va subiendo con el tiempo (ver calcularEstadoActual).
 // - despertar: Roberto se levanta; el sueño vuelve a bajar normal.
@@ -156,6 +156,7 @@ app.post('/accion', async (req, res) => {
         jugar: { columna: 'dopamina', suma: 30 },
         dormir: { durmiendo: true },
         despertar: { durmiendo: false },
+        banar: {}, // no mueve ningún stat: solo queda anotado en el historial
     };
 
     const accion = acciones[tipo];

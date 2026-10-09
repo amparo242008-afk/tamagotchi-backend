@@ -61,3 +61,63 @@ const char* const SPR_TORTA[24] = {
   "....AAAAAAAAAAAAAA......",
   "........................",
 };
+// Gaseosa y hamburguesa (agregadas el 09/10)
+const char PALETA_GASEOSA[] = "ABCDE";
+const uint16_t PALETA_GASEOSA_COLORES[] = {0x2080, 0x3100, 0x8082, 0xB800, 0xCCD3};
+const int PALETA_GASEOSA_N = 5;
+const char* const SPR_GASEOSA[24] = {
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  "...........CC...........",
+  "..........CDDC..........",
+  "..........CDDC..........",
+  "..........AAAA..........",
+  ".........ABBBBA.........",
+  "........ABBBBBBA........",
+  ".......ABBBBBBBBA.......",
+  ".......ABBBBBBBBA.......",
+  ".......ABBBBBBBBA.......",
+  ".......ACCCCCCCCA.......",
+  ".......ADDDDDDDDA.......",
+  ".......AEDEDDDEEA.......",
+  ".......ADDDEDDEDA.......",
+  ".......ADDDDDDDDA.......",
+  ".......ACCCCCCCCA.......",
+  ".......ABBBBBBBBA.......",
+  ".......ABBBBBBBBA.......",
+  ".......ABBBBBBBAA.......",
+  "........ABBBBBBA........",
+  "........AAAAAAAA........",
+};
+
+const char PALETA_HAMBURGUESA[] = "ABCDEF";
+const uint16_t PALETA_HAMBURGUESA_COLORES[] = {0x5A01, 0x7740, 0x8AE0, 0xCC84, 0xF800, 0xFFA0};
+const int PALETA_HAMBURGUESA_N = 6;
+const char* const SPR_HAMBURGUESA[24] = {
+  "........................",
+  "........................",
+  "...DDDDDDDDDDDDDDDDDD...",
+  "..DDDDDDDDDCDDDDDDDDDD..",
+  ".DDDDDCDDDDDDDDDDDDDDDD.",
+  ".DDDDDDDCDDDDCDDDDCDCDDD",
+  "DDCDCDDDDDDDDDDDDDDDDDDD",
+  "DDDDDDDDDCDDDDDDDCDDDCDD",
+  ".DCDDDDDDDDDDDDDDDDDDDDD",
+  ".DDDDDDDDDDDDDDDDDCDDDD.",
+  "BBBDBBDBBBBBBDDBDDDDDBD.",
+  "BBBBBBBBBBBBBBBBBBBBBBB.",
+  ".BBBBBBBBBBBBBBBBBBBBBBB",
+  "EEEEEEEEEBEEEEEEBBBEEEE.",
+  ".EEEEEEEEEEEEEEEEEEEEEE.",
+  "FFFFFFFFFFFFFFFFFFFFFFF.",
+  ".AAAAAFFFFAAAAAAAAAAAAA.",
+  "AAAAAAFFFFAAAAAAAAAAAAAA",
+  "AAAAAAAFFAAAAAAAAAAAAAAA",
+  ".AAAAAAAFAAAAAAAAAAAAAA.",
+  ".DDDDDDDDDDDDDDDDDDDDDD.",
+  "DDDDDDDDDDDDDDDDDDDDDDDD",
+  "DDDDDDDDDDDDDDDDDDDDDDDD",
+  ".DDDDDDDDDDDDDDDDDDDDDD.",
+};
