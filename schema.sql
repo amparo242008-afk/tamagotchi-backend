@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS estado_mascota (
     sueno                NUMERIC(5,2) NOT NULL DEFAULT 100,
     dopamina             NUMERIC(5,2) NOT NULL DEFAULT 100,
     durmiendo            BOOLEAN      NOT NULL DEFAULT false,
+    ultima_conexion      TIMESTAMPTZ,  -- última vez que Chaca habló con el servidor (para el panel)
     ultima_actualizacion TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
@@ -32,6 +33,20 @@ CREATE TABLE IF NOT EXISTS seguimiento_avisos (
     ultima_insistencia    TIMESTAMPTZ,
     completado            BOOLEAN     NOT NULL DEFAULT FALSE,
     UNIQUE (tipo, fecha)
+);
+
+-- Ajustes que se cambian desde el panel del acompañante.
+-- clave 'horarios' = los horarios de la rutina que cambió el acompañante (pisan los de rutina.json)
+CREATE TABLE IF NOT EXISTS configuracion (
+    clave TEXT PRIMARY KEY,
+    valor JSONB NOT NULL
+);
+
+-- Notas que escribe el acompañante en el panel
+CREATE TABLE IF NOT EXISTS notas_panel (
+    id    SERIAL PRIMARY KEY,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    texto TEXT        NOT NULL
 );
 
 -- Se llena sola desde preguntas.json cada vez que arranca el servidor

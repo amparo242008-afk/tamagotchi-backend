@@ -14,6 +14,7 @@
 //   6. GET  /respuesta/:clave y GET /preguntas -> las preguntas de Info
 //   6c. GET /rutina y POST /registro -> la agenda (avisos de comer, bañarse, dormir)
 //   7. prepararBase y arranque del servidor
+//   El panel del acompañante (/panel, con contraseña) está aparte, en panel.js
 //
 // Cómo se lee un "endpoint":  app.get('/estado', async (req, res) => { ... })
 //   - app.get / app.post: a qué tipo de pedido contesta (GET = traer, POST = mandar algo)
@@ -134,6 +135,8 @@ app.get('/estado', async (req, res) => {
         }
         const estadoActual = calcularEstadoActual(result.rows[0]);
         res.json(estadoActual);
+        // Chaca pide /estado cada minuto: así el panel sabe si está prendido y con internet
+        pool.query('UPDATE estado_mascota SET ultima_conexion = NOW() WHERE id = 1').catch(console.error);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error al consultar el estado' });
@@ -285,18 +288,35 @@ function fechaDelRango(rango) {
     return new Date(inicioUltimoRango(rango).getTime() + OFFSET_ARGENTINA_MS).toISOString().slice(0, 10);
 }
 
-// Lee rutina.json de nuevo cada vez (borrando la copia guardada), así si se edita
-// el archivo no hace falta reiniciar el servidor.
-function leerRutina() {
+// La rutina = rutina.json (frases, micro-tareas, rangos de arranque) + los horarios que
+// cambió el acompañante desde el panel. Esos cambios van en la base (tabla configuracion),
+// NO en rutina.json: el disco de Render se borra en cada reinicio y se perderían.
+// Se lee cada vez, así un cambio del panel vale enseguida, sin reiniciar el servidor.
+async function leerRutina() {
     delete require.cache[require.resolve('./rutina.json')];
-    return require('./rutina.json');
+    const rutina = structuredClone(require('./rutina.json'));
+    let cambios = null;
+    try {
+        const result = await pool.query("SELECT valor FROM configuracion WHERE clave = 'horarios'");
+        cambios = result.rows[0]?.valor;
+    } catch (err) {
+        console.error('No se pudieron leer los horarios del panel, uso rutina.json:', err.message);
+    }
+    if (cambios) {
+        if (cambios.silencio) rutina.silencio = cambios.silencio;
+        for (const r of rutina.rangos) {
+            const h = cambios.rangos?.[r.clave];
+            if (h) Object.assign(r, { desde: h.desde, hasta: h.hasta });
+        }
+    }
+    return rutina;
 }
 
 // GET /rutina: Chaca la pide al prender. Le devuelve rutina.json y, para cada rango,
 // lo que ya pasó hoy (si ya dijo "sí", cuántas veces preguntó y hace cuánto).
 app.get('/rutina', async (req, res) => {
     try {
-        const rutina = leerRutina();
+        const rutina = await leerRutina();
         const rangos = [];
         for (const r of rutina.rangos) {
             // ¿ya se contestó "sí" (o "hoy paso") en esta vuelta del rango? (así un reinicio no repregunta)
@@ -347,12 +367,12 @@ app.post('/registro', async (req, res) => {
     const prefijos = {
         si: 'confirmo', si_micro: 'confirmo_micro', mas_tarde: 'posterga', paso: 'paso', sin_respuesta: 'sin_respuesta',
     };
-    const rango = leerRutina().rangos.find((r) => r.clave === clave);
-    if (!rango || (!prefijos[respuesta] && respuesta !== 'aviso')) {
-        return res.status(400).json({ error: 'Registro inválido' });
-    }
-    const tipo = `${prefijos[respuesta]}_${rango.actividad}`;
     try {
+        const rango = (await leerRutina()).rangos.find((r) => r.clave === clave);
+        if (!rango || (!prefijos[respuesta] && respuesta !== 'aviso')) {
+            return res.status(400).json({ error: 'Registro inválido' });
+        }
+        const tipo = `${prefijos[respuesta]}_${rango.actividad}`;
         // seguimiento_avisos: una fila por rango y por día (la lee el panel del acompañante)
         if (respuesta === 'aviso') {
             await pool.query(
@@ -420,6 +440,23 @@ async function prepararBase() {
             UNIQUE (tipo, fecha)
         )`
     );
+    // Para el panel: cuándo habló Chaca por última vez con el servidor
+    await pool.query('ALTER TABLE estado_mascota ADD COLUMN IF NOT EXISTS ultima_conexion TIMESTAMPTZ');
+    // Ajustes que se cambian desde el panel (ej. clave "horarios" = los rangos de la rutina)
+    await pool.query(
+        `CREATE TABLE IF NOT EXISTS configuracion (
+            clave TEXT PRIMARY KEY,
+            valor JSONB NOT NULL
+        )`
+    );
+    // Notas que escribe el acompañante en el panel
+    await pool.query(
+        `CREATE TABLE IF NOT EXISTS notas_panel (
+            id    SERIAL PRIMARY KEY,
+            fecha TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            texto TEXT        NOT NULL
+        )`
+    );
     await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS pregunta TEXT');
     await pool.query('ALTER TABLE respuestas_fijas ADD COLUMN IF NOT EXISTS orden INTEGER NOT NULL DEFAULT 0');
     // La mascota se llama Chaca (antes Roberto): nombre sin género
@@ -453,6 +490,9 @@ async function cargarPreguntas() {
         cliente.release();
     }
 }
+
+// El panel del acompañante (todo lo que empieza con /panel)
+require('./panel')(app, { pool, leerRutina, aMinutos, OFFSET_ARGENTINA_MS });
 
 prepararBase()
     .catch((err) => console.error('No se pudo preparar la base:', err))

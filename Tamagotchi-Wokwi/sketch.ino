@@ -158,6 +158,15 @@ int maxAvisos = 3;              // cuantas veces como mucho por rango
 int silencioDesde = 22 * 60;     // de noche Chaca no hace ruido
 int silencioHasta = 8 * 60;
 volatile bool rutinaLista = false;
+// Cada hora se vuelve a pedir la rutina, por si el acompanante cambio horarios en el panel.
+// La tarea de red la deja en rangosNuevos y el loop la copia cuando puede (ver aplicarRutinaNueva),
+// asi nunca se pisan las fichas mientras el loop las esta usando.
+#define RUTINA_CADA_MS 3600000UL      // 1 hora
+Rango rangosNuevos[MAX_RANGOS];
+int nRangosNuevos = 0;
+int silencioDesdeNuevo = 0, silencioHastaNuevo = 0;
+volatile bool rutinaPendiente = false;  // true = llego una rutina nueva y falta copiarla
+unsigned long ultimaDescargaRutina = 0;
 unsigned long ultimoAvisoGlobal = 0;  // para no encadenar dos preguntas seguidas
 unsigned long ultimaRevisionAgenda = 0;
 int rangoAviso = 0;              // de que rango es la pregunta en pantalla
@@ -569,8 +578,11 @@ long vueltaDeRango(const Rango& r) {
 }
 
 // Baja la agenda (GET /rutina). Necesita la hora real para saber en que vuelta esta cada rango.
+// La primera vez la usa directo; despues (cada hora) la deja en rangosNuevos para el loop.
 void descargarRutina() {
-    if (rutinaLista || WiFi.status() != WL_CONNECTED || !horaLista()) return;
+    if (WiFi.status() != WL_CONNECTED || !horaLista()) return;
+    if (rutinaLista && (rutinaPendiente || millis() - ultimaDescargaRutina < RUTINA_CADA_MS)) return;
+    Rango* destino = rutinaLista ? rangosNuevos : rangos;
     HTTPClient http;
     http.begin(String(urlBase) + "/rutina");
     if (http.GET() == 200) {
@@ -578,12 +590,12 @@ void descargarRutina() {
         if (!deserializeJson(doc, http.getString())) {
             reinsistirMin = doc["reinsistir_min"] | 45;
             maxAvisos = doc["max_avisos"] | 3;
-            silencioDesde = aMinutos(doc["silencio"]["desde"] | "22:00");
-            silencioHasta = aMinutos(doc["silencio"]["hasta"] | "08:00");
+            silencioDesdeNuevo = aMinutos(doc["silencio"]["desde"] | "22:00");
+            silencioHastaNuevo = aMinutos(doc["silencio"]["hasta"] | "08:00");
             int n = 0;
             for (JsonObject r : doc["rangos"].as<JsonArray>()) {
                 if (n >= MAX_RANGOS) break;
-                Rango& rango = rangos[n];
+                Rango& rango = destino[n];
                 strlcpy(rango.clave, r["clave"] | "", sizeof(rango.clave));
                 strlcpy(rango.pregunta, r["pregunta"] | "", sizeof(rango.pregunta));
                 const char* act = r["actividad"] | "comida";
@@ -607,9 +619,17 @@ void descargarRutina() {
                 rango.vuelta = vueltaDeRango(rango);
                 n++;
             }
-            nRangos = n;
-            rutinaLista = true;  // recien ahora el loop la empieza a usar
-            Serial.printf("Agenda: %d rangos\n", n);
+            ultimaDescargaRutina = millis();
+            if (!rutinaLista) {
+                silencioDesde = silencioDesdeNuevo;
+                silencioHasta = silencioHastaNuevo;
+                nRangos = n;
+                rutinaLista = true;  // recien ahora el loop la empieza a usar
+                Serial.printf("Agenda: %d rangos\n", n);
+            } else {
+                nRangosNuevos = n;
+                rutinaPendiente = true;  // el loop la copia (aplicarRutinaNueva)
+            }
         }
     }
     http.end();
@@ -1505,7 +1525,33 @@ void responderHoyPaso() {
 // Se llama desde el loop una vez por segundo: ¿toca preguntar algo?
 // Parte 1: pone al dia las fichas de todos los rangos (dia nuevo, rango terminado).
 // Parte 2: si Chaca esta tranquilo, busca el primer rango que necesite preguntar.
+// Copia la rutina que se volvio a bajar. Si un rango no cambio de horario, se queda con lo
+// que ya sabia Chaca (si ya pregunto, si dijeron que si...); si cambio, usa lo que mando el servidor,
+// que ya lo calculo con el horario nuevo. Se llama desde el loop, nunca en medio de un aviso.
+void aplicarRutinaNueva() {
+    for (int j = 0; j < nRangosNuevos; j++) {
+        Rango& nuevo = rangosNuevos[j];
+        for (int i = 0; i < nRangos; i++) {
+            Rango& viejo = rangos[i];
+            if (strcmp(viejo.clave, nuevo.clave) != 0 || viejo.desde != nuevo.desde || viejo.hasta != nuevo.hasta) continue;
+            nuevo.confirmado = viejo.confirmado;
+            nuevo.paso = viejo.paso;
+            nuevo.avisos = viejo.avisos;
+            nuevo.ultimoAvisoMs = viejo.ultimoAvisoMs;
+            nuevo.cerrado = viejo.cerrado;
+            nuevo.vuelta = viejo.vuelta;
+        }
+    }
+    memcpy(rangos, rangosNuevos, sizeof(Rango) * nRangosNuevos);
+    nRangos = nRangosNuevos;
+    silencioDesde = silencioDesdeNuevo;
+    silencioHasta = silencioHastaNuevo;
+    rutinaPendiente = false;
+    Serial.println("Agenda actualizada");
+}
+
 void revisarAgenda() {
+    if (rutinaPendiente && pantallaActual != P_AVISO) aplicarRutinaNueva();
     if (!rutinaLista || !horaLista()) return;
     int m = minutoDelDia();
     for (int i = 0; i < nRangos; i++) {

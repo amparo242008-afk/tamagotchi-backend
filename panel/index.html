@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Panel de Chaca</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Pixelify+Sans:wght@500;700&display=swap">
+<style>
+/* Panel del acompañante. Mismo diseño que la maqueta que aprobó la acompañante:
+   arriba el estado general, después Hoy, la grilla de días y el historial.
+   Además: pestañas Rutina (cambiar horarios) y Notas. */
+:root {
+  --fondo: #fcf1bd;          /* crema del menu de Chaca */
+  --papel: #fffbe8;
+  --tinta: #292d31;          /* contorno de Chaca */
+  --tinta-suave: #5d5a4c;
+  --linea: #ebcb76;
+  --acento: #eb9866;         /* naranja de los iconos */
+  --ok: #4f9a6a;
+  --ok-suave: #a9d6b5;
+  --espera: #e3b341;
+  --sin: #c9c1a6;
+  --paso: #9fb4d8;
+  --vacio: #f3e9c4;
+  --alerta: #d0694a;
+  --f-pixel: "Pixelify Sans", "Courier New", monospace;
+  --f-texto: "Atkinson Hyperlegible", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --fondo: #1f2126; --papel: #2a2d33; --tinta: #f4ecd2; --tinta-suave: #b9b29a;
+  --linea: #4b4636; --acento: #f0a77a; --ok: #6cc28c; --ok-suave: #3d6b4c;
+  --espera: #d9a836; --sin: #5b574a; --paso: #4d5f80; --vacio: #33352f; --alerta: #e07a5c;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --fondo: #1f2126; --papel: #2a2d33; --tinta: #f4ecd2; --tinta-suave: #b9b29a;
+  --linea: #4b4636; --acento: #f0a77a; --ok: #6cc28c; --ok-suave: #3d6b4c;
+  --espera: #d9a836; --sin: #5b574a; --paso: #4d5f80; --vacio: #33352f; --alerta: #e07a5c;
+  color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fondo); color: var(--tinta); font-family: var(--f-texto); font-size: 16px; line-height: 1.5; }
+.pagina { max-width: 980px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 22px; }
+[hidden] { display: none !important; }
+
+.aviso-demo { background: var(--acento); color: #2b1a10; padding: 8px 14px; border-radius: 6px; font-size: 14px; font-weight: 700; }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between; }
+h1 { font-family: var(--f-pixel); font-size: clamp(28px, 5vw, 40px); line-height: 1; margin: 0; }
+h1 small { display: block; font-family: var(--f-texto); font-size: 15px; color: var(--tinta-suave); font-weight: 400; margin-top: 6px; }
+.conexion { font-size: 14px; color: var(--tinta-suave); display: flex; align-items: center; gap: 8px; }
+.punto { width: 10px; height: 10px; background: var(--ok); display: inline-block; }
+.punto.mal { background: var(--alerta); }
+.punto.nada { background: var(--sin); }
+
+nav.pestanas { display: flex; gap: 6px; flex-wrap: wrap; }
+nav.pestanas button { font: 700 16px var(--f-pixel); padding: 8px 16px; border-radius: 8px; border: 2px solid var(--linea); background: var(--papel); color: var(--tinta); cursor: pointer; }
+nav.pestanas button[aria-selected="true"] { background: var(--tinta); color: var(--fondo); border-color: var(--tinta); }
+
+h2 { font-family: var(--f-pixel); font-size: 22px; margin: 0; font-weight: 700; }
+.sub { color: var(--tinta-suave); font-size: 14px; margin: 2px 0 0; }
+section { background: var(--papel); border: 2px solid var(--linea); border-radius: 10px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.vista { display: grid; gap: 22px; min-width: 0; }
+.pagina > * { min-width: 0; }
+
+/* Semáforo */
+.estado { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; border-left: 8px solid var(--c); }
+.estado .luz { justify-self: start; font-family: var(--f-pixel); font-size: 15px; background: var(--c); color: #2b1a10; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+.estado p { margin: 0; }
+.estado .aclara { font-size: 13px; color: var(--tinta-suave); }
+.n-normal { --c: var(--ok); } .n-moderada { --c: var(--espera); } .n-atencion { --c: var(--alerta); } .n-sin_datos { --c: var(--sin); }
+
+/* Hoy */
+.rangos { display: grid; gap: 8px; }
+.rango { display: grid; grid-template-columns: 120px 100px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--fondo); }
+.rango .nombre { font-weight: 700; }
+.rango .hora { font-variant-numeric: tabular-nums; color: var(--tinta-suave); font-size: 14px; }
+.rango .detalle { font-size: 14px; min-width: 0; }
+.chip { font-size: 13px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.chip.ok { background: var(--ok); color: #fff; }
+.chip.ok2 { background: var(--ok-suave); color: var(--tinta); }
+.chip.espera { background: var(--espera); color: #2b1a10; }
+.chip.sin { background: var(--sin); color: var(--tinta); }
+.chip.paso { background: var(--paso); color: var(--tinta); }
+.chip.nada, .chip.sin_datos { background: transparent; border: 1.5px dashed var(--linea); color: var(--tinta-suave); }
+.avisos { display: inline-flex; gap: 3px; vertical-align: middle; margin-right: 6px; }
+.avisos i { width: 9px; height: 9px; background: var(--linea); display: inline-block; }
+.avisos i.on { background: var(--acento); }
+
+/* Grilla de días */
+.cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: end; }
+.selector { display: inline-flex; border: 2px solid var(--linea); border-radius: 8px; overflow: hidden; }
+.selector button { font: 14px var(--f-texto); padding: 4px 12px; border: 0; background: var(--papel); color: var(--tinta); cursor: pointer; }
+.selector button[aria-pressed="true"] { background: var(--tinta); color: var(--fondo); font-weight: 700; }
+.grilla-scroll { overflow-x: auto; }
+table.grilla { border-collapse: separate; border-spacing: 4px; font-size: 13px; }
+.grilla th { font-weight: 400; color: var(--tinta-suave); font-variant-numeric: tabular-nums; padding: 0 2px; }
+.grilla th.fila { text-align: left; font-weight: 700; color: var(--tinta); padding-right: 8px; white-space: nowrap; position: sticky; left: 0; background: var(--papel); }
+.grilla th.hoy { color: var(--acento); font-weight: 700; }
+.celda { width: 30px; height: 30px; border-radius: 5px; border: 0; padding: 0; cursor: pointer; display: block; }
+.celda:focus-visible { outline: 3px solid var(--acento); outline-offset: 1px; }
+.celda.sel { outline: 3px solid var(--tinta); outline-offset: 1px; }
+.c-ok { background: var(--ok); } .c-ok2 { background: var(--ok-suave); } .c-sin { background: var(--sin); }
+.c-espera { background: var(--espera); } .c-nada { background: var(--vacio); } .c-paso { background: var(--paso); }
+.c-sin_datos { background: repeating-linear-gradient(45deg, var(--vacio) 0 4px, transparent 4px 8px); border: 1.5px dashed var(--linea); }
+.leyenda { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--tinta-suave); }
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda b { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+.detalle-dia { background: var(--fondo); border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+.detalle-dia h3 { margin: 0 0 6px; font-size: 15px; }
+.detalle-dia ul { margin: 0; padding-left: 18px; }
+.resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.resumen div { background: var(--fondo); border-radius: 8px; padding: 10px 12px; }
+.resumen strong { font-family: var(--f-pixel); font-size: 24px; font-variant-numeric: tabular-nums; display: block; }
+.resumen span { font-size: 13px; color: var(--tinta-suave); }
+
+/* Historial */
+label.toggle { font-size: 14px; display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+ol.hist { list-style: none; margin: 0; padding: 0; display: grid; }
+ol.hist li { display: grid; grid-template-columns: 56px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--linea); font-size: 15px; }
+ol.hist li:last-child { border-bottom: 0; }
+ol.hist time { font-variant-numeric: tabular-nums; color: var(--tinta-suave); font-size: 14px; }
+ol.hist .juego { color: var(--tinta-suave); }
+ol.hist .tag { font-size: 12px; border: 1px solid var(--linea); border-radius: 4px; padding: 0 5px; margin-left: 6px; color: var(--tinta-suave); }
+.vacio { color: var(--tinta-suave); font-size: 14px; margin: 0; }
+
+/* Formularios (rutina y notas) */
+.form-rutina { display: grid; gap: 8px; }
+.fila-rutina { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--fondo); }
+.fila-rutina .que { min-width: 0; }
+.fila-rutina .que strong { display: block; }
+.fila-rutina .que span { font-size: 13px; color: var(--tinta-suave); }
+.fila-rutina label { font-size: 13px; color: var(--tinta-suave); display: grid; gap: 2px; }
+input[type="time"], textarea { font: 16px var(--f-texto); color: var(--tinta); background: var(--papel); border: 2px solid var(--linea); border-radius: 6px; padding: 6px 8px; }
+textarea { width: 100%; min-height: 90px; resize: vertical; }
+.botones { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button.principal, button.secundario { font: 700 15px var(--f-texto); padding: 10px 18px; border-radius: 8px; cursor: pointer; }
+button.principal { background: var(--tinta); color: var(--fondo); border: 2px solid var(--tinta); }
+button.secundario { background: transparent; color: var(--tinta); border: 2px solid var(--linea); }
+button:disabled { opacity: .5; cursor: default; }
+.mensaje { font-size: 14px; font-weight: 700; }
+.mensaje.bien { color: var(--ok); } .mensaje.mal { color: var(--alerta); }
+ul.notas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+ul.notas li { background: var(--fondo); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; }
+ul.notas .cuando { font-size: 13px; color: var(--tinta-suave); display: flex; justify-content: space-between; gap: 10px; }
+ul.notas .cuando button { font-size: 13px; background: none; border: 0; color: var(--tinta-suave); text-decoration: underline; cursor: pointer; padding: 0; }
+ul.notas p { margin: 0; white-space: pre-wrap; }
+
+.nota-pie { font-size: 14px; color: var(--tinta-suave); border-top: 2px dashed var(--linea); padding-top: 14px; margin: 0; }
+.nota-pie a { color: inherit; }
+
+@media (max-width: 640px) {
+  .rango { grid-template-columns: 1fr auto; }
+  .rango .hora { grid-column: 1; grid-row: 2; }
+  .rango .detalle { grid-column: 1 / -1; }
+  .rango .chip { grid-column: 2; grid-row: 1; }
+  .estado { grid-template-columns: 1fr; }
+  .fila-rutina { grid-template-columns: 1fr 1fr; }
+  .fila-rutina .que { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: no-preference) { .celda { transition: transform .12s; } .celda:hover { transform: scale(1.12); } }
+</style>
+</head>
+<body>
+<div class="pagina">
+  <div class="aviso-demo" id="aviso-demo" hidden>DATOS DE EJEMPLO · el seguimiento que ves es inventado. La rutina y las notas sí son las reales.</div>
+
+  <header>
+    <h1>Chaca<small id="fecha-hoy">Panel del acompañante</small></h1>
+    <div class="conexion"><span class="punto nada" id="punto"></span><span id="conexion">Cargando…</span></div>
+  </header>
+
+  <nav class="pestanas" role="tablist">
+    <button role="tab" aria-selected="true" data-vista="seguimiento">Seguimiento</button>
+    <button role="tab" aria-selected="false" data-vista="rutina">Rutina</button>
+    <button role="tab" aria-selected="false" data-vista="notas">Notas</button>
+  </nav>
+
+  <!-- ===== Seguimiento ===== -->
+  <div class="vista" id="v-seguimiento">
+    <section class="estado n-sin_datos" id="estado" aria-label="Estado general">
+      <span class="luz" id="luz">…</span>
+      <p><strong id="estado-texto"></strong><br>
+      <span class="aclara"><em>Atención moderada</em>: un área sin respuesta 2 días o más. <em>Atención</em>: ninguna respuesta en nada por más de 3 días. Estos avisos los ve solo el acompañante.</span></p>
+    </section>
+
+    <section aria-labelledby="t-hoy">
+      <div><h2 id="t-hoy">Hoy</h2><p class="sub">Cada horario de la rutina, con lo que respondió la persona y cuántas veces preguntó Chaca.</p></div>
+      <div class="rangos" id="hoy"></div>
+    </section>
+
+    <section aria-labelledby="t-dias">
+      <div class="cabecera">
+        <div><h2 id="t-dias">Últimos <span id="n-dias">14</span> días</h2><p class="sub">Tocá un cuadrito para ver el detalle de ese día.</p></div>
+        <div class="selector" role="group" aria-label="Cuántos días mostrar">
+          <button type="button" data-dias="14" aria-pressed="true">14 días</button>
+          <button type="button" data-dias="30" aria-pressed="false">30 días</button>
+        </div>
+      </div>
+      <div class="grilla-scroll"><table class="grilla" id="grilla"></table></div>
+      <div class="leyenda">
+        <span><b class="c-ok"></b>Confirmó</span>
+        <span><b class="c-ok2"></b>Confirmó después de “Más tarde”</span>
+        <span><b class="c-paso"></b>Eligió “Hoy paso”</span>
+        <span><b class="c-sin"></b>Sin respuesta</span>
+        <span><b class="c-espera"></b>En curso</span>
+        <span><b class="c-nada"></b>Todavía no empezó</span>
+        <span><b class="c-sin_datos"></b>Sin datos (Chaca apagado)</span>
+      </div>
+      <div class="detalle-dia" id="detalle" aria-live="polite"></div>
+      <div class="resumen" id="resumen"></div>
+    </section>
+
+    <section aria-labelledby="t-hist">
+      <div class="cabecera">
+        <div><h2 id="t-hist">Historial de hoy</h2><p class="sub">Todo lo que pasó, con la hora exacta.</p></div>
+        <label class="toggle"><input type="checkbox" id="ver-juego"> Mostrar también el juego con Chaca</label>
+      </div>
+      <ol class="hist" id="hist"></ol>
+    </section>
+  </div>
+
+  <!-- ===== Rutina ===== -->
+  <div class="vista" id="v-rutina" hidden>
+    <section aria-labelledby="t-rutina">
+      <div><h2 id="t-rutina">Horarios de la rutina</h2>
+      <p class="sub">En cada horario Chaca pregunta (por ejemplo “¿Ya cenaste?”) y, si no hay respuesta, vuelve a preguntar más tarde. Un horario puede pasar la medianoche (ej. dormir de 21:00 a 01:00). Chaca toma los cambios en menos de una hora.</p></div>
+      <form class="form-rutina" id="form-rutina"></form>
+      <div class="botones">
+        <button type="submit" form="form-rutina" class="principal" id="guardar-rutina">Guardar cambios</button>
+        <button type="button" class="secundario" id="original-rutina" hidden>Volver a los horarios originales</button>
+        <span class="mensaje" id="msg-rutina" role="status"></span>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== Notas ===== -->
+  <div class="vista" id="v-notas" hidden>
+    <section aria-labelledby="t-notas">
+      <div><h2 id="t-notas">Notas</h2><p class="sub">Para anotar lo que observes. Las ve solo el acompañante, nunca aparecen en Chaca.</p></div>
+      <form id="form-nota" class="form-rutina">
+        <textarea id="texto-nota" maxlength="2000" placeholder="Ej.: hoy no cenó dos días seguidos, le pregunté y…" aria-label="Nueva nota"></textarea>
+        <div class="botones">
+          <button type="submit" class="principal">Guardar nota</button>
+          <span class="mensaje" id="msg-nota" role="status"></span>
+        </div>
+      </form>
+      <ul class="notas" id="notas"></ul>
+    </section>
+  </div>
+
+  <p class="nota-pie">Para la persona, cada día empieza de cero: Chaca nunca le muestra lo que no hizo. Este registro existe solo para el acompañante, para ver patrones a lo largo del tiempo.
+  <br><a href="#" id="cambiar-demo">Ver con datos de ejemplo</a></p>
+</div>
+
+<script>
+const DEMO = new URLSearchParams(location.search).get('demo') === '1';
+const DIAS_SEM = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const TEXTO = {
+  ok: 'confirmó', ok2: 'confirmó después de “Más tarde”', paso: 'eligió “Hoy paso”', sin: 'sin respuesta',
+  espera: 'en curso', nada: 'todavía no empezó', sin_datos: 'sin datos (Chaca apagado o sin internet)',
+};
+const CHIP = { ok: 'Confirmó', ok2: 'Confirmó', paso: 'Hoy paso', sin: 'Sin respuesta', espera: 'En curso', nada: 'Todavía no', sin_datos: 'Sin datos' };
+const LUZ = { normal: 'NORMAL', moderada: 'ATENCIÓN MODERADA', atencion: 'ATENCIÓN', sin_datos: 'SIN DATOS' };
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...hijos) => { const n = document.createElement(tag); Object.assign(n, attrs); n.append(...hijos); return n; };
+const deFecha = (f) => new Date(f + 'T12:00:00');  // "2026-10-10" -> fecha (al mediodía, para que no se corra de día)
+
+async function pedir(url, opciones = {}) {
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opciones });
+  const datos = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(datos.error || 'No se pudo conectar con el servidor');
+  return datos;
+}
+
+// ---------- Pestañas ----------
+// (#rutina o #notas en la dirección abre directo esa pestaña)
+function abrirPestana(vista) {
+  document.querySelectorAll('nav.pestanas button').forEach((x) => x.setAttribute('aria-selected', x.dataset.vista === vista));
+  for (const v of ['seguimiento', 'rutina', 'notas']) $('v-' + v).hidden = v !== vista;
+  history.replaceState(null, '', vista === 'seguimiento' ? location.pathname + location.search : '#' + vista);
+}
+document.querySelectorAll('nav.pestanas button').forEach((b) => b.addEventListener('click', () => abrirPestana(b.dataset.vista)));
+if (['#rutina', '#notas'].includes(location.hash)) abrirPestana(location.hash.slice(1));
+
+$('aviso-demo').hidden = !DEMO;
+$('cambiar-demo').textContent = DEMO ? 'Volver a los datos reales' : 'Ver con datos de ejemplo';
+$('cambiar-demo').href = DEMO ? '?' : '?demo=1';
+
+// ---------- Seguimiento ----------
+let dias = 14;
+let datos = null;
+
+document.querySelectorAll('.selector button').forEach((b) => b.addEventListener('click', () => {
+  dias = Number(b.dataset.dias);
+  document.querySelectorAll('.selector button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+  cargarSeguimiento();
+}));
+
+async function cargarSeguimiento() {
+  try {
+    datos = await pedir(`/panel/datos?dias=${dias}${DEMO ? '&demo=1' : ''}`);
+    dibujarSeguimiento();
+  } catch (e) {
+    $('estado-texto').textContent = e.message;
+  }
+}
+
+function hace(ms) {
+  const min = Math.round(ms / 60000);
+  if (min < 1) return 'recién';
+  if (min < 60) return `hace ${min} minuto${min === 1 ? '' : 's'}`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `hace ${h} hora${h === 1 ? '' : 's'}`;
+  return `hace ${Math.round(h / 24)} días`;
+}
+
+function dibujarSeguimiento() {
+  const d = datos;
+  const fechaLarga = deFecha(d.hoy).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('fecha-hoy').textContent = `Panel del acompañante · ${fechaLarga}`;
+
+  // Conexión: Chaca pide los stats cada minuto, así que más de 30 min sin noticias = apagado o sin internet
+  if (d.ultimaConexion === null) { $('punto').className = 'punto nada'; $('conexion').textContent = 'Chaca todavía no se conectó'; }
+  else {
+    const lejos = d.ahora - d.ultimaConexion > 30 * 60000;
+    $('punto').className = 'punto' + (lejos ? ' mal' : '');
+    $('conexion').textContent = (lejos ? 'Sin conexión · ' : '') + `Chaca se conectó ${hace(d.ahora - d.ultimaConexion)}`;
+  }
+
+  // Semáforo
+  $('estado').className = `estado n-${d.semaforo.nivel}`;
+  $('luz').textContent = LUZ[d.semaforo.nivel];
+  $('estado-texto').textContent = d.semaforo.texto;
+
+  // Hoy
+  $('hoy').replaceChildren(...d.rangos.map((r) => {
+    const h = d.hoyDetalle[r.clave];
+    const avisos = el('span', { className: 'avisos', title: `${h.avisos} de ${d.maxAvisos} avisos` });
+    for (let i = 0; i < d.maxAvisos; i++) avisos.append(el('i', { className: i < h.avisos ? 'on' : '' }));
+    return el('div', { className: 'rango' },
+      el('span', { className: 'nombre' }, r.nombre),
+      el('span', { className: 'hora' }, `${r.desde}–${r.hasta}`),
+      el('span', { className: 'detalle' }, avisos, h.texto),
+      el('span', { className: `chip ${h.estado}` }, CHIP[h.estado]));
+  }));
+
+  // Grilla
+  $('n-dias').textContent = d.fechas.length;
+  const ultimo = d.fechas.length - 1;
+  const cab = el('tr', {}, el('th'));
+  d.fechas.forEach((f, i) => {
+    const fecha = deFecha(f);
+    cab.append(el('th', { className: i === ultimo ? 'hoy' : '', innerHTML: `${DIAS_SEM[fecha.getDay()]}<br>${fecha.getDate()}` }));
+  });
+  let seleccionada = null;
+  const cuerpo = el('tbody');
+  for (const r of d.rangos) {
+    const fila = el('tr', {}, el('th', { className: 'fila', scope: 'row' }, r.nombre));
+    d.grilla[r.clave].forEach((e, i) => {
+      const b = el('button', { className: `celda c-${e}`, type: 'button' });
+      b.setAttribute('aria-label', `${r.nombre}, ${deFecha(d.fechas[i]).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' })}: ${TEXTO[e]}`);
+      b.addEventListener('click', () => { if (seleccionada) seleccionada.classList.remove('sel'); b.classList.add('sel'); seleccionada = b; mostrarDia(i); });
+      fila.append(el('td', {}, b));
+    });
+    cuerpo.append(fila);
+  }
+  $('grilla').replaceChildren(el('thead', {}, cab), cuerpo);
+  $('grilla').closest('.grilla-scroll').scrollLeft = 99999;  // que se vea hoy (a la derecha)
+  mostrarDia(ultimo);
+
+  // Resumen por área
+  $('resumen').replaceChildren(...d.resumen.map((a) =>
+    el('div', {}, el('strong', {}, `${a.si}/${a.total}`), el('span', {}, `${a.area}: confirmaciones en ${d.fechas.length} días`))));
+
+  dibujarHistorial();
+}
+
+function mostrarDia(i) {
+  const d = datos;
+  const titulo = i === d.fechas.length - 1 ? 'Hoy'
+    : deFecha(d.fechas[i]).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const ul = el('ul');
+  for (const r of d.rangos) ul.append(el('li', {}, el('strong', {}, r.nombre + ': '), TEXTO[d.grilla[r.clave][i]]));
+  $('detalle').replaceChildren(el('h3', {}, titulo[0].toUpperCase() + titulo.slice(1)), ul);
+}
+
+function dibujarHistorial() {
+  const ver = $('ver-juego').checked;
+  const lista = datos.historial.filter((h) => ver || !h.juego);
+  if (!lista.length) { $('hist').replaceChildren(el('li', {}, el('span'), el('span', { className: 'vacio' }, 'Todavía no pasó nada hoy.'))); return; }
+  $('hist').replaceChildren(...lista.map((h) =>
+    el('li', {}, el('time', {}, h.hora), el('span', { className: h.juego ? 'juego' : '' }, h.texto, ...(h.juego ? [el('span', { className: 'tag' }, 'juego')] : [])))));
+}
+$('ver-juego').addEventListener('change', dibujarHistorial);
+
+// ---------- Rutina ----------
+async function cargarRutina() {
+  try {
+    const r = await pedir('/panel/rutina');
+    const fila = (id, nombre, detalle, h) => el('div', { className: 'fila-rutina' },
+      el('div', { className: 'que' }, el('strong', {}, nombre), el('span', {}, detalle)),
+      el('label', {}, 'Desde', el('input', { type: 'time', name: id + '-desde', value: h.desde, required: true })),
+      el('label', {}, 'Hasta', el('input', { type: 'time', name: id + '-hasta', value: h.hasta, required: true })));
+    $('form-rutina').replaceChildren(
+      ...r.rangos.map((x) => fila(x.clave, x.nombre, `Chaca pregunta: “${x.pregunta}”`, x)),
+      fila('silencio', 'Silencio', 'En este horario Chaca no hace sonidos (solo el clic de los botones).', r.silencio));
+    $('form-rutina').dataset.claves = r.rangos.map((x) => x.clave).join(',');
+    $('original-rutina').hidden = !r.cambiada;
+  } catch (e) {
+    mensaje('msg-rutina', e.message, false);
+  }
+}
+
+function mensaje(id, texto, bien) { $(id).textContent = texto; $(id).className = 'mensaje ' + (bien ? 'bien' : 'mal'); }
+
+$('form-rutina').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const f = new FormData($('form-rutina'));
+  const h = (id) => ({ desde: f.get(id + '-desde'), hasta: f.get(id + '-hasta') });
+  const rangos = {};
+  for (const c of $('form-rutina').dataset.claves.split(',')) rangos[c] = h(c);
+  $('guardar-rutina').disabled = true;
+  try {
+    await pedir('/panel/rutina', { method: 'POST', body: JSON.stringify({ silencio: h('silencio'), rangos }) });
+    mensaje('msg-rutina', 'Rutina actualizada ✓', true);
+    await cargarRutina();
+    cargarSeguimiento();
+  } catch (e) {
+    mensaje('msg-rutina', e.message, false);
+  }
+  $('guardar-rutina').disabled = false;
+});
+
+$('original-rutina').addEventListener('click', async () => {
+  if (!confirm('¿Volver a los horarios originales? Se pierden los cambios que hiciste.')) return;
+  try {
+    await pedir('/panel/rutina', { method: 'DELETE' });
+    mensaje('msg-rutina', 'Se volvió a los horarios originales ✓', true);
+    await cargarRutina();
+    cargarSeguimiento();
+  } catch (e) {
+    mensaje('msg-rutina', e.message, false);
+  }
+});
+
+// ---------- Notas ----------
+async function cargarNotas() {
+  try {
+    const notas = await pedir('/panel/notas');
+    if (!notas.length) { $('notas').replaceChildren(el('li', {}, el('p', { className: 'vacio' }, 'Todavía no hay notas.'))); return; }
+    $('notas').replaceChildren(...notas.map((n) => {
+      const borrar = el('button', { type: 'button' }, 'Borrar');
+      borrar.addEventListener('click', async () => {
+        if (!confirm('¿Borrar esta nota?')) return;
+        try { await pedir(`/panel/notas/${n.id}`, { method: 'DELETE' }); cargarNotas(); }
+        catch (e) { mensaje('msg-nota', e.message, false); }
+      });
+      const cuando = new Date(n.fecha).toLocaleString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+      return el('li', {}, el('div', { className: 'cuando' }, el('span', {}, cuando), borrar), el('p', {}, n.texto));
+    }));
+  } catch (e) {
+    mensaje('msg-nota', e.message, false);
+  }
+}
+
+$('form-nota').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const texto = $('texto-nota').value.trim();
+  if (!texto) return;
+  try {
+    await pedir('/panel/notas', { method: 'POST', body: JSON.stringify({ texto }) });
+    $('texto-nota').value = '';
+    mensaje('msg-nota', 'Nota guardada ✓', true);
+    cargarNotas();
+  } catch (e) {
+    mensaje('msg-nota', e.message, false);
+  }
+});
+
+cargarSeguimiento();
+cargarRutina();
+cargarNotas();
+setInterval(cargarSeguimiento, 60000);  // se actualiza solo cada minuto
+</script>
+</body>
+</html>
