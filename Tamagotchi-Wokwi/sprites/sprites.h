@@ -320,6 +320,62 @@ const char* const spr_robertocorriendo2[SPR_H] = {
   "........................",
 };
 
+// robertocorriendo3 (paleta de Chaca)
+const char* const spr_robertocorriendo3[SPR_H] = {
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  "..........A.............",
+  ".........A.....A........",
+  "........BAAAA.A.........",
+  ".......BBAAAAA..........",
+  "......AAAAAAAAA.........",
+  ".....ACCCCCCCCCA........",
+  ".....ACCAACCCCCA........",
+  ".....AACCCCCCCCA........",
+  ".....AAACCCCCCCA........",
+  ".....ACCCCCCCCCA........",
+  "......ACCCCCCCA.........",
+  ".....AACCCCACCA.........",
+  "....A.ACCCACCCA.........",
+  "......ACCCCCCCA.........",
+  ".......AAAAAAA..........",
+  ".......A.....A..........",
+  "......A......A..........",
+  "........................",
+  "........................",
+};
+
+// robertocorriendo4 (paleta de Chaca)
+const char* const spr_robertocorriendo4[SPR_H] = {
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  "........................",
+  ".........A..............",
+  "........A...............",
+  "........BAAAA.AA........",
+  ".......BBAAAAA..........",
+  "......AAAAAAAAA.........",
+  ".....ACCCCCCCCCA........",
+  ".....AACCAACCCCA........",
+  ".....ACACCCCCCCA........",
+  ".....AACAACCCCCA........",
+  ".....ACCCCCCCCCA........",
+  "......ACCCCCCCA.........",
+  ".....AACCCCACCA.........",
+  "......ACCCCCACA.........",
+  "......ACCCCCCCA.........",
+  ".......AAAAAAA..........",
+  ".......A.....AAA........",
+  ".......A................",
+  "........................",
+  "........................",
+};
+
 // robertofestejo (paleta de Chaca)
 const char* const spr_robertofestejo[SPR_H] = {
   "........................",
@@ -526,8 +582,9 @@ const char* const* const SPR_COMER[] = {spr_comer0, spr_comer2, spr_comer3};
 #define N_COMER 3
 const char* const* const SPR_DORMIR[] = {spr_dormir0, spr_dormir1};
 #define N_DORMIR 2
-const char* const* const SPR_CORRER[] = {spr_robertocorriendo1, spr_robertocorriendo2};
-#define N_CORRER 2
+const char* const* const SPR_CORRER[] = {spr_robertocorriendo1, spr_robertocorriendo2,
+                                         spr_robertocorriendo3, spr_robertocorriendo4};
+#define N_CORRER 4
 const char* const* const SPR_FESTEJO[] = {spr_robertofestejo};
 #define N_FESTEJO 1
 const char* const* const SPR_HABLAR[] = {spr_robertohablando1, spr_robertohablando3};

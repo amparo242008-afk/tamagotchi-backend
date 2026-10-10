@@ -259,6 +259,9 @@ const Nota SONIDO_BOMBA[]    = {{220, 120}, {0, 0}};
 const Nota SONIDO_AVISO[]    = {{MI5, 100}, {0, 60}, {SOL5, 100}, {0, 60}, {DO6, 180}, {0, 0}};
 const Nota SONIDO_NO[]       = {{MI5, 80}, {0, 40}, {DO5, 120}, {0, 0}};
 const Nota SONIDO_BURBUJA[]  = {{1200, 15}, {1700, 25}, {0, 0}};
+// Al prender: una melodia alegre que sube y termina con el "hola" de Chaca (dura ~1,5 s)
+const Nota SONIDO_INICIO[]   = {{DO5, 110}, {MI5, 110}, {SOL5, 110}, {DO6, 220}, {0, 120},
+                                {SOL5, 90}, {0, 40}, {DO6, 90}, {0, 40}, {MI5, 90}, {SOL5, 90}, {DO6, 260}, {0, 0}};
 
 // ---------- Reloj (hora real por internet, NTP) ----------
 // El ESP32 no tiene pila de reloj: al prender no sabe que hora es.
@@ -462,10 +465,16 @@ void terminarZona(GFXcanvas16* lienzo, int rx, int ry) {
 // OJO: las que terminan en "Ahora" y las "descargar..." pueden tardar hasta ~50 s,
 // asi que solo se llaman desde la tarea de red, nunca desde el loop.
 
+// Render gratis "se duerme" y tarda hasta ~50 s en contestar. HTTPClient por defecto
+// se cansa de esperar a los 5 s y el pedido se pierde (ej. Chaca comia y el stat no subia).
+// Como todo esto corre en la tarea de red, esperar mas no traba la pantalla.
+#define ESPERA_SERVIDOR_MS 60000
+
 // GET /estado: trae hambre, sueno, dopamina y si esta durmiendo
 void consultarEstado() {
     if (WiFi.status() != WL_CONNECTED) return;
     HTTPClient http;
+    http.setTimeout(ESPERA_SERVIDOR_MS);
     http.begin(String(urlBase) + "/estado");
     int codigo = http.GET();
     if (codigo > 0) {
@@ -483,22 +492,36 @@ void consultarEstado() {
 
 // POST /accion: avisa que Chaca comio / jugo / se durmio / se desperto.
 // Manda algo como {"tipo":"jugar","puntos":7} y despues pide los stats nuevos.
+// Si falla (sin internet, servidor despertando), lo intenta hasta 3 veces.
 void enviarAccionAhora(const char* tipo, int puntos) {
-    if (WiFi.status() != WL_CONNECTED) return;
-    HTTPClient http;
-    http.begin(String(urlBase) + "/accion");
-    http.addHeader("Content-Type", "application/json");
     String cuerpo = String("{\"tipo\":\"") + tipo + "\"";
     if (strcmp(tipo, "jugar") == 0) cuerpo += ",\"puntos\":" + String(puntos);
-    http.POST(cuerpo + "}");
-    http.end();
+    cuerpo += "}";
+    for (int intento = 1; intento <= 3; intento++) {
+        if (WiFi.status() == WL_CONNECTED) {
+            HTTPClient http;
+            http.setTimeout(ESPERA_SERVIDOR_MS);
+            http.begin(String(urlBase) + "/accion");
+            http.addHeader("Content-Type", "application/json");
+            int codigo = http.POST(cuerpo);
+            http.end();
+            Serial.printf("Accion %s: respuesta %d (intento %d)\n", tipo, codigo, intento);
+            if (codigo > 0) break;  // el servidor contesto (aunque sea con error): no repetir
+        }
+        vTaskDelay(pdMS_TO_TICKS(5000));  // esperar un poco antes de reintentar
+    }
     consultarEstado();
 }
 
 // Desde las pantallas se usa ESTA: deja la accion en la cola y vuelve al instante.
 // El servidor de Render (plan gratis) puede tardar hasta ~50 s en despertarse,
 // y antes eso congelaba la pantalla hasta que respondia.
+// Ademas sube el stat en la pantalla al toque (con la misma cuenta que hace server.js),
+// asi no hay que esperar al servidor para ver que Chaca comio o jugo.
 void enviarAccion(const char* tipo, int puntos = 0) {
+    if (strcmp(tipo, "alimentar") == 0) hambreActual = min(100, hambreActual + 30);
+    if (strcmp(tipo, "jugar") == 0) dopaminaActual = min(100, dopaminaActual + min(50, 5 + puntos * 3));
+    statsNuevos = true;
     Pedido p = {tipo, puntos, nullptr};
     xQueueSend(colaAcciones, &p, 0);
 }
@@ -595,6 +618,7 @@ void descargarRutina() {
 void enviarRegistroAhora(int rango, const char* respuesta) {
     if (WiFi.status() != WL_CONNECTED) return;
     HTTPClient http;
+    http.setTimeout(ESPERA_SERVIDOR_MS);
     http.begin(String(urlBase) + "/registro");
     http.addHeader("Content-Type", "application/json");
     http.POST(String("{\"clave\":\"") + rangos[rango].clave + "\",\"respuesta\":\"" + respuesta + "\"}");
@@ -1153,14 +1177,16 @@ void dibujarInfoRespuesta() {
 #define MAX_OBJETOS 6
 #define OBJ_ESCALA 2
 #define OBJ_LADO (16 * OBJ_ESCALA)
-#define PROB_CORAZON 70            // de cada 100 cosas que caen, 70 son corazones
+#define PROB_CORAZON 55            // de cada 100 cosas que caen, 55 son corazones (y 45 bombas)
 #define JUEGO_ROB_ESCALA 4
 #define JUEGO_ROB_LADO (24 * JUEGO_ROB_ESCALA)
 #define JUEGO_ROB_Y 208            // con los pies sobre el caminito
 #define JUEGO_ROB_VEL 7            // pixeles por cuadro que avanza Chaca
 #define JUEGO_ANIM_MS 90           // cada cuanto cambia el dibujo de correr (menos = piernas mas rapidas)
-#define JUEGO_ESPERA_MIN 900       // tiempo entre una cosa que cae y la siguiente (ms)
-#define JUEGO_ESPERA_MAX 1500
+#define JUEGO_ESPERA_MIN 650       // tiempo entre una cosa que cae y la siguiente (ms)
+#define JUEGO_ESPERA_MAX 1100
+#define JUEGO_VEL_MIN 35           // velocidad al caer, en decimas de pixel por cuadro (35 = 3,5)
+#define JUEGO_VEL_MAX 42           // poca diferencia: si no, las rapidas alcanzan a las lentas
 #define JUEGO_SEPARACION_X 70      // distancia minima (en x) con la cosa anterior
 #define JUEGO_ROB_MIN_X (-20)      // el cuerpo ocupa las columnas 5..16 del sprite
 #define JUEGO_ROB_MAX_X (240 - 68)
@@ -1333,7 +1359,7 @@ void pasoJuego() {
             juegoUltimoX = x;
             objetos[i].y = -OBJ_LADO;
             // todas caen casi igual de rapido: si no, las rapidas alcanzan a las lentas y se amontonan
-            objetos[i].vel = 2.5 + random(0, 6) / 10.0;  // entre 2,5 y 3 pixeles por cuadro
+            objetos[i].vel = random(JUEGO_VEL_MIN, JUEGO_VEL_MAX + 1) / 10.0;  // entre 3,5 y 4,2 pixeles por cuadro
             break;
         }
         juegoProximoObjeto = millis() + random(JUEGO_ESPERA_MIN, JUEGO_ESPERA_MAX);
@@ -1581,7 +1607,7 @@ void dibujarBienvenida() {
     dibujarZonaBienvenida(bienvRobX, BIENV_ROB_LADO);
     bienvFlechaDibujada = 1;
     dibujarPlacaBienvenida(1);
-    sonar(SONIDO_SALUDO);
+    sonar(SONIDO_INICIO);  // la bienvenida es lo primero que se ve al prender
 }
 
 // Se llama en cada vuelta del loop mientras estamos en la bienvenida
