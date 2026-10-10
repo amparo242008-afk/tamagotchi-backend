@@ -1,7 +1,9 @@
 // panel.js - Panel web del acompañante (todo lo que empieza con /panel)
 //
 // Qué hay acá:
-//   1. Contraseña: todo /panel pide la clave PANEL_CLAVE (se configura en Render, Environment)
+//   1. Entrar: /panel/entrar es la pantalla de inicio de sesión. La contraseña es PANEL_CLAVE
+//      y el usuario PANEL_USUARIO (las dos se configuran en Render, Environment).
+//      Sin haber entrado, todo lo demás de /panel manda a esa pantalla.
 //   2. GET  /panel                 -> la página (panel/index.html)
 //   3. GET  /panel/datos           -> lo que muestra la pestaña Seguimiento (hoy, grilla, historial)
 //                                     con ?demo=1 usa datos inventados (para mostrar sin datos reales)
@@ -13,6 +15,8 @@
 // misma forma, así el ejemplo pasa por exactamente las mismas cuentas que lo real.
 
 const path = require('path');
+const crypto = require('crypto');
+const express = require('express');
 
 const NOMBRES = { desayuno: 'Desayuno', almuerzo: 'Almuerzo', cena: 'Cena', bano: 'Baño', dormir: 'Dormir' };
 const AREAS = { comida: 'Comida', higiene: 'Higiene', dormir: 'Descanso' };
@@ -28,22 +32,64 @@ module.exports = function (app, { pool, leerRutina, aMinutos, OFFSET_ARGENTINA_M
     const medianoche = (fecha) => Date.parse(fecha + 'T00:00:00Z') - OFFSET_ARGENTINA_MS;
 
     // =====================================================================
-    // 1. CONTRASEÑA
+    // 1. ENTRAR (inicio de sesión)
     // =====================================================================
-    // Usa la "autenticación básica" del navegador: la primera vez aparece un cartelito
-    // pidiendo usuario y contraseña (el usuario puede ser cualquiera) y el navegador lo recuerda.
-    function pedirClave(req, res, next) {
-        const clave = process.env.PANEL_CLAVE;
-        if (!clave) return res.status(503).send('Falta configurar PANEL_CLAVE en Render (Environment).');
-        const [tipo, dato] = (req.headers.authorization || '').split(' ');
-        if (tipo === 'Basic' && dato) {
-            const escrita = Buffer.from(dato, 'base64').toString().split(':').slice(1).join(':');
-            if (escrita === clave) return next();
+    // Al entrar bien, el navegador guarda una "cookie" (un papelito con una ficha) por 30 días.
+    // La ficha sale de la contraseña con una cuenta que no se puede dar vuelta (HMAC):
+    // si se cambia PANEL_CLAVE en Render, las fichas viejas dejan de servir y hay que entrar de nuevo.
+    const DIAS_SESION = 30;
+    const fichaDe = (clave) => crypto.createHmac('sha256', clave).update('panel-de-chaca').digest('hex');
+    const iguales = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
+    function leerCookie(req, nombre) {
+        for (const parte of (req.headers.cookie || '').split(';')) {
+            const [k, ...v] = parte.trim().split('=');
+            if (k === nombre) return v.join('=');
         }
-        res.set('WWW-Authenticate', 'Basic realm="Panel de Chaca", charset="UTF-8"');
-        res.status(401).send('Hace falta la contraseña del panel.');
+        return '';
     }
-    app.use('/panel', pedirClave);
+
+    // Contra los que prueban contraseñas al azar: después de 10 errores, 15 minutos sin poder probar
+    const errores = new Map();  // ip -> { cantidad, desde }
+    const ipDe = (req) => (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
+
+    // Las imágenes y la pantalla de entrar se ven sin haber entrado
+    app.use('/panel/img', express.static(path.join(__dirname, 'panel', 'img')));
+    app.get('/panel/entrar', (req, res) => res.sendFile(path.join(__dirname, 'panel', 'entrar.html')));
+
+    app.post('/panel/entrar', async (req, res) => {
+        const clave = process.env.PANEL_CLAVE;
+        if (!clave) return res.status(503).json({ error: 'Falta configurar PANEL_CLAVE en Render.' });
+        const ip = ipDe(req);
+        const e = errores.get(ip);
+        if (e && e.cantidad >= 10 && Date.now() - e.desde < 15 * MIN) {
+            return res.status(429).json({ error: 'Demasiados intentos. Esperá unos minutos y probá de nuevo.' });
+        }
+        const usuario = String(req.body?.usuario || '').trim().toLowerCase();
+        const escrita = String(req.body?.clave || '');
+        const usuarioOk = !process.env.PANEL_USUARIO || usuario === process.env.PANEL_USUARIO.trim().toLowerCase();
+        if (usuarioOk && iguales(fichaDe(escrita), fichaDe(clave))) {
+            errores.delete(ip);
+            res.set('Set-Cookie', `panel=${fichaDe(clave)}; Path=/panel; HttpOnly; Secure; SameSite=Lax; Max-Age=${DIAS_SESION * 24 * 3600}`);
+            return res.json({ mensaje: 'ok' });
+        }
+        errores.set(ip, e && Date.now() - e.desde < 15 * MIN ? { cantidad: e.cantidad + 1, desde: e.desde } : { cantidad: 1, desde: Date.now() });
+        await new Promise((r) => setTimeout(r, 800));  // una pausita para que probar al azar sea lento
+        res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+    });
+
+    app.post('/panel/salir', (req, res) => {
+        res.set('Set-Cookie', 'panel=; Path=/panel; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+        res.json({ mensaje: 'Sesión cerrada' });
+    });
+
+    // Todo lo demás de /panel: si no entró, a la pantalla de entrar (o error, si lo pide la página)
+    app.use('/panel', (req, res, next) => {
+        const clave = process.env.PANEL_CLAVE;
+        if (clave && iguales(leerCookie(req, 'panel'), fichaDe(clave))) return next();
+        if (req.method === 'GET' && req.path === '/') return res.redirect('/panel/entrar');
+        res.status(401).json({ error: 'Hace falta iniciar sesión.' });
+    });
 
     // =====================================================================
     // 2. LA PÁGINA

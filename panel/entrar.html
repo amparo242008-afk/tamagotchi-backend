@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Panel de Chaca · Entrar</title>
+<link rel="icon" href="/panel/img/saludo1.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Pixelify+Sans:wght@500;700&display=swap">
+<style>
+/* Pantalla de inicio del panel: el fondo de la bienvenida de Chaca (la loma) y una tarjeta
+   con el usuario y la contraseña. Mismos colores que el panel. */
+:root {
+  --papel: #fffbe8;
+  --tinta: #292d31;
+  --tinta-suave: #5d5a4c;
+  --linea: #ebcb76;
+  --acento: #eb9866;
+  --alerta: #c0533a;
+  --cielo: #c4e4f8;
+  --f-pixel: "Pixelify Sans", "Courier New", monospace;
+  --f-texto: "Atkinson Hyperlegible", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --papel: #2a2d33; --tinta: #f4ecd2; --tinta-suave: #b9b29a; --linea: #6b6248; --acento: #f0a77a; --alerta: #e07a5c; --cielo: #31465a;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --papel: #2a2d33; --tinta: #f4ecd2; --tinta-suave: #b9b29a; --linea: #6b6248; --acento: #f0a77a; --alerta: #e07a5c; --cielo: #31465a;
+  color-scheme: dark }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; font-family: var(--f-texto); color: var(--tinta);
+  /* el fondo es vertical: en pantallas anchas se agranda hasta cubrir y se encuadra
+     el cielo con el borde de la loma (34% = un poco arriba del medio) */
+  background: var(--noche, linear-gradient(transparent, transparent)), url("/panel/img/fondo.png") center 34% / cover no-repeat, var(--cielo);
+  image-rendering: pixelated;  /* que el pixel art se agrande sin ponerse borroso */
+  display: grid; place-items: center; padding: 24px 16px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --noche: linear-gradient(rgb(16 22 38 / .6), rgb(16 22 38 / .6)); } }
+:root[data-theme="dark"] { --noche: linear-gradient(rgb(16 22 38 / .6), rgb(16 22 38 / .6)); }
+
+.tarjeta {
+  width: min(380px, 100%);
+  background: var(--papel);
+  border: 3px solid var(--tinta);
+  border-radius: 14px;
+  box-shadow: 6px 6px 0 var(--tinta);  /* sombra "de pixel", sin difuminar */
+  padding: 26px 24px 22px;
+  display: grid; gap: 18px;
+  image-rendering: auto;
+}
+.marca { display: grid; justify-items: center; gap: 4px; text-align: center; }
+.chaca {
+  width: 96px; height: 96px; margin-top: -78px;
+  background: url("/panel/img/saludo1.png") center / contain no-repeat;
+  image-rendering: pixelated;
+  animation: saludar 1.2s steps(1) infinite;
+}
+@keyframes saludar { 50% { background-image: url("/panel/img/saludo2.png"); } }
+@media (prefers-reduced-motion: reduce) { .chaca { animation: none; } }
+h1 { font-family: var(--f-pixel); font-size: 38px; line-height: 1; margin: 6px 0 0; }
+.marca p { margin: 0; color: var(--tinta-suave); font-size: 15px; }
+
+form { display: grid; gap: 14px; }
+label { display: grid; gap: 6px; font-weight: 700; font-size: 14px; }
+input {
+  font: 17px var(--f-texto); color: var(--tinta); background: transparent;
+  border: 2px solid var(--linea); border-radius: 8px; padding: 11px 12px; width: 100%;
+}
+input:focus { outline: none; border-color: var(--acento); box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 30%, transparent); }
+.clave { position: relative; }
+.clave input { padding-right: 70px; }
+.clave button {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  font: 700 13px var(--f-texto); color: var(--tinta-suave); background: none; border: 0; padding: 6px 8px; cursor: pointer;
+}
+button.entrar {
+  font: 700 20px var(--f-pixel); letter-spacing: .5px;
+  background: var(--tinta); color: var(--papel); border: 0; border-radius: 8px; padding: 12px; cursor: pointer;
+  box-shadow: 0 4px 0 var(--acento);
+}
+button.entrar:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--acento); }
+button.entrar:disabled { opacity: .6; cursor: default; }
+.error { color: var(--alerta); font-weight: 700; font-size: 14px; min-height: 1.2em; margin: -4px 0 0; text-align: center; }
+.pie { font-size: 13px; color: var(--tinta-suave); text-align: center; margin: 0; border-top: 2px dashed var(--linea); padding-top: 14px; }
+</style>
+</head>
+<body>
+<main class="tarjeta">
+  <div class="marca">
+    <div class="chaca" role="img" aria-label="Chaca saludando"></div>
+    <h1>Chaca</h1>
+    <p>Panel del acompañante</p>
+  </div>
+
+  <form id="form" novalidate>
+    <label>Usuario
+      <input id="usuario" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    </label>
+    <label>Contraseña
+      <span class="clave">
+        <input id="clave" name="password" type="password" autocomplete="current-password" required>
+        <button type="button" id="ver" aria-label="Mostrar contraseña">Ver</button>
+      </span>
+    </label>
+    <p class="error" id="error" role="alert"></p>
+    <button class="entrar" id="entrar" type="submit">Entrar</button>
+  </form>
+
+  <p class="pie">Acceso solo para el acompañante. Lo que se ve acá nunca aparece en Chaca.</p>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+$('ver').addEventListener('click', () => {
+  const oculta = $('clave').type === 'password';
+  $('clave').type = oculta ? 'text' : 'password';
+  $('ver').textContent = oculta ? 'Ocultar' : 'Ver';
+  $('ver').setAttribute('aria-label', oculta ? 'Ocultar contraseña' : 'Mostrar contraseña');
+});
+
+$('form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  if (!$('usuario').value.trim() || !$('clave').value) { $('error').textContent = 'Completá el usuario y la contraseña.'; return; }
+  $('entrar').disabled = true;
+  $('entrar').textContent = 'Entrando…';
+  $('error').textContent = '';
+  try {
+    const r = await fetch('/panel/entrar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: $('usuario').value, clave: $('clave').value }),
+    });
+    if (r.ok) { location.href = '/panel'; return; }
+    const datos = await r.json().catch(() => ({}));
+    $('error').textContent = datos.error || 'No se pudo entrar. Probá de nuevo.';
+    $('clave').select();
+  } catch {
+    $('error').textContent = 'No hay conexión con el servidor. Probá de nuevo en un ratito.';
+  }
+  $('entrar').disabled = false;
+  $('entrar').textContent = 'Entrar';
+});
+</script>
+</body>
+</html>

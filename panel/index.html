@@ -250,7 +250,7 @@ ul.notas p { margin: 0; white-space: pre-wrap; }
   </div>
 
   <p class="nota-pie">Para la persona, cada día empieza de cero: Chaca nunca le muestra lo que no hizo. Este registro existe solo para el acompañante, para ver patrones a lo largo del tiempo.
-  <br><a href="#" id="cambiar-demo">Ver con datos de ejemplo</a></p>
+  <br><a href="#" id="cambiar-demo">Ver con datos de ejemplo</a> · <a href="#" id="salir">Cerrar sesión</a></p>
 </div>
 
 <script>
@@ -269,6 +269,7 @@ const deFecha = (f) => new Date(f + 'T12:00:00');  // "2026-10-10" -> fecha (al 
 
 async function pedir(url, opciones = {}) {
   const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opciones });
+  if (r.status === 401) { location.href = '/panel/entrar'; throw new Error('Hace falta iniciar sesión'); }
   const datos = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(datos.error || 'No se pudo conectar con el servidor');
   return datos;
@@ -477,6 +478,12 @@ $('form-nota').addEventListener('submit', async (ev) => {
   } catch (e) {
     mensaje('msg-nota', e.message, false);
   }
+});
+
+$('salir').addEventListener('click', async (ev) => {
+  ev.preventDefault();
+  await fetch('/panel/salir', { method: 'POST' });
+  location.href = '/panel/entrar';
 });
 
 cargarSeguimiento();
