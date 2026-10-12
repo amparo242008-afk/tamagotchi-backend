@@ -1,5 +1,5 @@
 // =====================================================================
-//  ROBERTO - firmware del tamagotchi (ESP32-S3 + pantalla ILI9341)
+//  ROBERTO - firmware del tamagotchi (ESP32 clasico NodeMCU 38 pines + pantalla ILI9341)
 // =====================================================================
 // Como esta armado este archivo (en orden, de arriba hacia abajo):
 //
@@ -60,21 +60,21 @@ const char* urlBase = "https://tamagotchi-api-9vk6.onrender.com";
 // Pines de la pantalla (SPI de hardware: el ESP32 tiene un circuito propio para
 // mandar datos rapido a la pantalla; por software era lento y trababa los botones).
 // MISO no se usa (la pantalla no le contesta al ESP32), pero hay que darle un pin libre.
-#define TFT_CS 10
-#define TFT_DC 13
-#define TFT_RST 14
-#define TFT_MOSI 11
-#define TFT_SCK 12
-#define TFT_MISO 16
+#define TFT_CS 5
+#define TFT_DC 21
+#define TFT_RST 22
+#define TFT_MOSI 23
+#define TFT_SCK 18
+#define TFT_MISO 19
 // "tft" es la pantalla: todo lo que se dibuja pasa por aca (tft.fillRect, tft.print...)
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 
 // Los 3 botones y el buzzer. #define = un nombre fijo para un numero (no ocupa memoria).
 // NAV = moverse / cambiar opcion, SELECT = elegir, BACK = volver.
-#define PIN_NAV 4
-#define PIN_SELECT 5
-#define PIN_BACK 6
-#define PIN_BUZZER 7
+#define PIN_NAV 32
+#define PIN_SELECT 33
+#define PIN_BACK 25
+#define PIN_BUZZER 26
 #define SONIDO_ACTIVADO true   // false = Chaca en silencio
 
 // Posiciones de Chaca en cada pantalla (ajustá si no quedan bien)
