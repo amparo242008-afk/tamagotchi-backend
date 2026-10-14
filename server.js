@@ -27,6 +27,8 @@
 const express = require('express');   // la librería para armar el servidor web
 const { Pool } = require('pg');       // la librería para hablar con Postgres
 require('dotenv').config();           // lee el archivo .env (contraseñas locales)
+const fs = require('fs');             // para leer archivos (schema.sql)
+const path = require('path');         // para armar rutas de archivos
 
 const app = express();
 app.use(express.json());              // para entender los pedidos que vienen en JSON
@@ -309,6 +311,16 @@ async function leerRutina() {
             if (h) Object.assign(r, { desde: h.desde, hasta: h.hasta });
         }
     }
+    for (const r of rutina.rangos) {
+        // cuántas veces pregunta como mucho: la del rango si tiene (la actividad del día, 1), si no la general
+        r.max_avisos ??= rutina.max_avisos;
+        // Actividad del día: cada día una de las "opciones", rotando (caminar, ventana, música...).
+        // Se elige por la fecha, así todo el día es la misma aunque Chaca se reinicie.
+        if (r.opciones?.length) {
+            const dia = Math.floor(Date.parse(fechaDelRango(r)) / (24 * 60 * 60 * 1000));
+            r.pregunta = r.opciones[dia % r.opciones.length];
+        }
+    }
     return rutina;
 }
 
@@ -416,6 +428,9 @@ app.post('/registro', async (req, res) => {
 // Antes de arrancar, agrega a la base lo que haga falta (si ya existe, no hace nada).
 // Así no hay que correr SQL a mano en Render cada vez que se suma algo.
 async function prepararBase() {
+    // Primero schema.sql entero: con una base nueva y vacía crea todas las tablas y la mascota.
+    // Lo que sigue abajo es para bases viejas a las que les faltan columnas o tablas nuevas.
+    await pool.query(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
     await pool.query(
         'ALTER TABLE estado_mascota ADD COLUMN IF NOT EXISTS durmiendo BOOLEAN NOT NULL DEFAULT false'
     );

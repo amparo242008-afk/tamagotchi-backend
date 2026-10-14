@@ -338,8 +338,9 @@ function dibujarSeguimiento() {
   // Hoy
   $('hoy').replaceChildren(...d.rangos.map((r) => {
     const h = d.hoyDetalle[r.clave];
-    const avisos = el('span', { className: 'avisos', title: `${h.avisos} de ${d.maxAvisos} avisos` });
-    for (let i = 0; i < d.maxAvisos; i++) avisos.append(el('i', { className: i < h.avisos ? 'on' : '' }));
+    const max = r.maxAvisos || d.maxAvisos;  // la actividad del día pregunta 1 sola vez
+    const avisos = el('span', { className: 'avisos', title: `${h.avisos} de ${max} avisos` });
+    for (let i = 0; i < max; i++) avisos.append(el('i', { className: i < h.avisos ? 'on' : '' }));
     return el('div', { className: 'rango' },
       el('span', { className: 'nombre' }, r.nombre),
       el('span', { className: 'hora' }, `${r.desde}–${r.hasta}`),
@@ -405,7 +406,9 @@ async function cargarRutina() {
       el('label', {}, 'Desde', el('input', { type: 'time', name: id + '-desde', value: h.desde, required: true })),
       el('label', {}, 'Hasta', el('input', { type: 'time', name: id + '-hasta', value: h.hasta, required: true })));
     $('form-rutina').replaceChildren(
-      ...r.rangos.map((x) => fila(x.clave, x.nombre, `Chaca pregunta: “${x.pregunta}”`, x)),
+      ...r.rangos.map((x) => fila(x.clave, x.nombre, x.opciones
+        ? `Una por día, rotando: ${x.opciones.map((o) => `“${o}”`).join(' ')}`
+        : `Chaca pregunta: “${x.pregunta}”`, x)),
       fila('silencio', 'Silencio', 'En este horario Chaca no hace sonidos (solo el clic de los botones).', r.silencio));
     $('form-rutina').dataset.claves = r.rangos.map((x) => x.clave).join(',');
     $('original-rutina').hidden = !r.cambiada;

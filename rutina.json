@@ -11,6 +11,9 @@
       "micro": ["¿Picaste algo?", "¿Tomamos algo?", "¿Vemos qué podemos comer?"] },
     { "clave": "bano",     "actividad": "higiene", "desde": "08:00", "hasta": "21:00", "pregunta": "¿Te lavaste cara y dientes?",
       "micro": ["¿Te lavaste los dientes?", "¿Te lavaste la cara?", "¿Te lavaste las manos?"] },
+    { "clave": "actividad", "actividad": "actividad", "desde": "16:00", "hasta": "19:00", "max_avisos": 1,
+      "opciones": ["¿Salimos a caminar un ratito?", "¿Abrimos la ventana para que entre aire?",
+                   "¿Ponemos música que te guste?", "¿Hacemos la cama?", "¿Dibujamos algo?"] },
     { "clave": "dormir",   "actividad": "dormir",  "desde": "21:00", "hasta": "01:00", "pregunta": "¿Vamos a dormir?" }
   ]
 }

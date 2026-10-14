@@ -1,6 +1,6 @@
 -- =============================================
 -- Esquema del Tamagotchi
--- Ejecutar esto una sola vez en la base de datos.
+-- El servidor lo ejecuta solo cada vez que arranca (todo es IF NOT EXISTS, no pisa nada).
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS estado_mascota (

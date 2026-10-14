@@ -18,8 +18,8 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 
-const NOMBRES = { desayuno: 'Desayuno', almuerzo: 'Almuerzo', cena: 'Cena', bano: 'Baño', dormir: 'Dormir' };
-const AREAS = { comida: 'Comida', higiene: 'Higiene', dormir: 'Descanso' };
+const NOMBRES = { desayuno: 'Desayuno', almuerzo: 'Almuerzo', cena: 'Cena', bano: 'Baño', actividad: 'Actividad del día', dormir: 'Dormir' };
+const AREAS = { comida: 'Comida', higiene: 'Higiene', actividad: 'Actividad', dormir: 'Descanso' };
 const MIN = 60 * 1000;
 const HORA = 60 * MIN;
 const DIA = 24 * HORA;
@@ -139,6 +139,7 @@ module.exports = function (app, { pool, leerRutina, aMinutos, OFFSET_ARGENTINA_M
             return {
                 clave: r.clave, actividad: r.actividad, desde: r.desde, hasta: r.hasta, inicio: desde * MIN, duracion,
                 nombre: NOMBRES[r.clave] || r.clave, area: AREAS[r.actividad] || r.actividad,
+                maxAvisos: r.max_avisos, opciones: r.opciones,
             };
         });
         const hoy = fechaAr(ahora);
@@ -175,6 +176,8 @@ module.exports = function (app, { pool, leerRutina, aMinutos, OFFSET_ARGENTINA_M
         for (const r of rangos) {
             const v = vuelta(r, hoy);
             const partes = [];
+            // Actividad del día: cuál le toca hoy (la misma cuenta que hace leerRutina en server.js)
+            if (r.opciones?.length) partes.push(`Hoy: “${r.opciones[Math.floor(Date.parse(hoy) / DIA) % r.opciones.length]}”`);
             if (v.pospuso) partes.push(`Pospuso a las ${horaAr(v.pospuso.ms)}`);
             if (v.confirmo) {
                 const micro = v.confirmo.tipo.startsWith('confirmo_micro_') ? ' (con una micro-tarea)' : '';
@@ -257,7 +260,7 @@ module.exports = function (app, { pool, leerRutina, aMinutos, OFFSET_ARGENTINA_M
             ahora,
             ultimaConexion,
             maxAvisos: rutina.max_avisos,
-            rangos: rangos.map(({ clave, nombre, area, desde, hasta }) => ({ clave, nombre, area, desde, hasta })),
+            rangos: rangos.map(({ clave, nombre, area, desde, hasta, maxAvisos }) => ({ clave, nombre, area, desde, hasta, maxAvisos })),
             fechas,
             grilla,
             hoyDetalle,
@@ -293,7 +296,7 @@ module.exports = function (app, { pool, leerRutina, aMinutos, OFFSET_ARGENTINA_M
                 if (resultado === 'ok') anotar('confirmo', minuto(2));
                 if (resultado === 'ok2') { anotar('posterga', minuto(1)); anotar('confirmo', minuto(46)); avisos = 2; }
                 if (resultado === 'paso') { anotar('posterga', minuto(1)); anotar('paso', minuto(46)); avisos = 2; }
-                if (resultado === 'sin') { avisos = Math.min(3, Math.floor((ahora - empieza) / (45 * MIN)) + 1); anotar('sin_respuesta', termina + MIN); }
+                if (resultado === 'sin') { avisos = Math.min(r.max_avisos, Math.floor((ahora - empieza) / (45 * MIN)) + 1); anotar('sin_respuesta', termina + MIN); }
                 seguimiento.push({ clave: r.clave, fecha, avisos });
             }
             // un poco de juego con Chaca
@@ -318,7 +321,8 @@ module.exports = function (app, { pool, leerRutina, aMinutos, OFFSET_ARGENTINA_M
                 cambiada,
                 silencio: rutina.silencio,
                 rangos: rutina.rangos.map((r) => ({
-                    clave: r.clave, nombre: NOMBRES[r.clave] || r.clave, pregunta: r.pregunta, desde: r.desde, hasta: r.hasta,
+                    clave: r.clave, nombre: NOMBRES[r.clave] || r.clave, pregunta: r.pregunta, opciones: r.opciones,
+                    desde: r.desde, hasta: r.hasta,
                 })),
             });
         } catch (err) {

@@ -132,15 +132,17 @@ struct Pedido { const char* tipo; int dato; const char* respuesta; };
 #define MAX_RANGOS 8
 #define MAX_MICRO 4
 // enum = una lista de opciones con nombre (por dentro son 0, 1, 2...)
-enum Actividad { ACT_COMIDA, ACT_HIGIENE, ACT_DORMIR };
+// ACT_ACTIVIDAD = la actividad del dia (caminar, abrir la ventana...): con "Si" Chaca festeja
+enum Actividad { ACT_COMIDA, ACT_HIGIENE, ACT_DORMIR, ACT_ACTIVIDAD };
 // struct = una "ficha" que junta varios datos. Cada rango de rutina.json
-// (desayuno, almuerzo, cena, bano, dormir) tiene su ficha, con lo que Chaca
+// (desayuno, almuerzo, cena, bano, actividad, dormir) tiene su ficha, con lo que Chaca
 // necesita recordar de ese rango HOY.
 struct Rango {
     char clave[16];
     char pregunta[48];           // lo que dice Chaca, ej. "¿Ya almorzaste?" (de rutina.json)
     Actividad actividad;
     int desde, hasta;            // minutos del dia (ej. 8:30 = 510); hasta < desde = cruza la medianoche
+    int maxAvisos;               // cuantas veces pregunta como mucho (la actividad del dia, 1)
     char micro[MAX_MICRO][48];   // micro-tareas: preguntas mas chicas para despues del primer "Mas tarde"
     int nMicro;
     bool confirmado;             // ya dijo "si" en esta vuelta del rango
@@ -207,8 +209,8 @@ int cursorInfo = 0;
 // Estas son solo por si no hay internet. El fondo tiene lugar para 6.
 #define MAX_PREGUNTAS 6
 #define N_PREGUNTAS_FIJAS 4
-const char* preguntasFijas[N_PREGUNTAS_FIJAS] = {"Nombre", "Edad", "Comida favorita", "Juego favorito"};
-const char* clavesFijas[N_PREGUNTAS_FIJAS] = {"nombre", "edad", "comida_favorita", "juego_favorito"};
+const char* preguntasFijas[N_PREGUNTAS_FIJAS] = {"Nombre", "Color favorito", "Comida favorita", "Juego favorito"};
+const char* clavesFijas[N_PREGUNTAS_FIJAS] = {"nombre", "color_favorito", "comida_favorita", "juego_favorito"};
 char preguntasBajadas[MAX_PREGUNTAS][40];
 char clavesBajadas[MAX_PREGUNTAS][40];
 int nPreguntasBajadas = 0;
@@ -600,7 +602,9 @@ void descargarRutina() {
                 strlcpy(rango.pregunta, r["pregunta"] | "", sizeof(rango.pregunta));
                 const char* act = r["actividad"] | "comida";
                 rango.actividad = strcmp(act, "dormir") == 0 ? ACT_DORMIR
-                                : strcmp(act, "higiene") == 0 ? ACT_HIGIENE : ACT_COMIDA;
+                                : strcmp(act, "higiene") == 0 ? ACT_HIGIENE
+                                : strcmp(act, "actividad") == 0 ? ACT_ACTIVIDAD : ACT_COMIDA;
+                rango.maxAvisos = r["max_avisos"] | maxAvisos;
                 rango.desde = aMinutos(r["desde"] | "00:00");
                 rango.hasta = aMinutos(r["hasta"] | "00:00");
                 rango.nMicro = 0;
@@ -1454,6 +1458,7 @@ const char* textoAviso(const Rango& r) {
     if (r.pregunta[0]) return r.pregunta;
     if (r.actividad == ACT_COMIDA) return "¿Ya comiste?";
     if (r.actividad == ACT_DORMIR) return "¿Vamos a dormir?";
+    if (r.actividad == ACT_ACTIVIDAD) return "¿Hacemos algo lindo?";
     return "¿Te bañaste?";
 }
 
@@ -1578,7 +1583,7 @@ void revisarAgenda() {
     for (int i = 0; i < nRangos; i++) {
         Rango& r = rangos[i];
         // no pregunta si: ya dijo que si, dijo "Hoy paso", ya pregunto el maximo, o no es el horario
-        if (r.confirmado || r.paso || r.avisos >= maxAvisos || !enRango(r.desde, r.hasta, m)) continue;
+        if (r.confirmado || r.paso || r.avisos >= r.maxAvisos || !enRango(r.desde, r.hasta, m)) continue;
         // ni si todavia no pasaron los 45 minutos desde la ultima vez
         if (r.avisos > 0 && millis() - r.ultimoAvisoMs < (unsigned long)reinsistirMin * 60000UL) continue;
         mostrarAviso(i);
