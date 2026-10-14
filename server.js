@@ -243,11 +243,12 @@ app.get('/respuesta/:clave', async (req, res) => {
 // ---------------------------------------------
 // 6b. ENDPOINT: GET /preguntas
 // ---------------------------------------------
-// La lista de preguntas que muestra Chaca en Info, en orden: [{ clave, pregunta }]
+// La lista de preguntas que muestra Chaca en Info, en orden: [{ clave, pregunta, respuesta }]
+// Van con la respuesta, así Chaca las guarda al prender y contesta al instante.
 app.get('/preguntas', async (req, res) => {
     try {
         const result = await pool.query(
-            'SELECT pregunta_clave AS clave, pregunta FROM respuestas_fijas ORDER BY orden'
+            'SELECT pregunta_clave AS clave, pregunta, respuesta FROM respuestas_fijas ORDER BY orden'
         );
         res.json(result.rows);
     } catch (err) {

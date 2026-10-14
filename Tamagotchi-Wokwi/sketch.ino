@@ -205,14 +205,21 @@ const Comida comidas[] = {
 const int N_COMIDAS = sizeof(comidas) / sizeof(comidas[0]);  // cuantas filas tiene la tabla
 
 int cursorInfo = 0;
-// Las preguntas se escriben en preguntas.json (en el servidor) y Chaca las baja al prender.
-// Estas son solo por si no hay internet. El fondo tiene lugar para 6.
+// Las preguntas se escriben en preguntas.json (en el servidor) y Chaca las baja al prender,
+// con las respuestas, asi contesta al instante sin esperar al servidor.
+// Estas son solo por si no hay internet (copia de preguntas.json). El fondo tiene lugar para 6.
 #define MAX_PREGUNTAS 6
 #define N_PREGUNTAS_FIJAS 4
 const char* preguntasFijas[N_PREGUNTAS_FIJAS] = {"Nombre", "Color favorito", "Comida favorita", "Juego favorito"};
 const char* clavesFijas[N_PREGUNTAS_FIJAS] = {"nombre", "color_favorito", "comida_favorita", "juego_favorito"};
+const char* respuestasFijas[N_PREGUNTAS_FIJAS] = {
+    "Me llamo Chaca y soy tu Tamagotchi.",
+    "El celeste, como las paredes de mi living.",
+    "¡La hamburguesa! Aunque la torta también me encanta.",
+    "¡Atrapar corazones, y más si jugás conmigo!"};
 char preguntasBajadas[MAX_PREGUNTAS][40];
 char clavesBajadas[MAX_PREGUNTAS][40];
+char respuestasBajadas[MAX_PREGUNTAS][128];  // con tildes tal cual (las pasa dibujarBurbuja)
 int nPreguntasBajadas = 0;
 volatile bool preguntasListas = false;   // true cuando ya se bajaron del servidor
 bool infoDibujadaConBajadas = false;
@@ -274,6 +281,26 @@ const Nota SONIDO_BURBUJA[]  = {{1200, 15}, {1700, 25}, {0, 0}};
 const Nota SONIDO_INICIO[]   = {{DO5, 110}, {MI5, 110}, {SOL5, 110}, {DO6, 220}, {0, 120},
                                 {SOL5, 90}, {0, 40}, {DO6, 90}, {0, 40}, {MI5, 90}, {SOL5, 90}, {DO6, 260}, {0, 0}};
 
+// Musica del juego: una melodia alegre (en Do mayor, inventada para Chaca). Se repite sin parar.
+// Va por debajo de los efectos (corazon, bomba) para que esos se sigan distinguiendo.
+#define SOL4 392
+#define SI4 494
+#define RE5 587
+#define FA5 698
+#define MUS_CORCHEA 115                       // la nota mas corta; mas chico = musica mas rapida
+#define MUS_NEGRA (MUS_CORCHEA * 2)
+#define MUS_BLANCA (MUS_CORCHEA * 4)
+const Nota MUSICA_JUEGO[] = {
+    {DO5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {SOL5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {DO6, MUS_NEGRA}, {SOL5, MUS_NEGRA},
+    {LA5, MUS_CORCHEA}, {SOL5, MUS_CORCHEA}, {FA5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {RE5, MUS_NEGRA}, {SOL4, MUS_NEGRA},
+    {DO5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {SOL5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {LA5, MUS_NEGRA}, {SOL5, MUS_NEGRA},
+    {FA5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {RE5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {DO5, MUS_BLANCA},
+    {MI5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {FA5, MUS_CORCHEA}, {SOL5, MUS_CORCHEA}, {LA5, MUS_NEGRA}, {SOL5, MUS_NEGRA},
+    {FA5, MUS_CORCHEA}, {FA5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {RE5, MUS_CORCHEA}, {MI5, MUS_NEGRA}, {DO5, MUS_NEGRA},
+    {RE5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {FA5, MUS_CORCHEA}, {LA5, MUS_CORCHEA}, {SOL5, MUS_NEGRA}, {SI4, MUS_NEGRA},
+    {DO5, MUS_CORCHEA}, {SOL4, MUS_CORCHEA}, {DO5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {DO5, MUS_NEGRA}, {0, MUS_NEGRA},
+    {0, 0}};
+
 // ---------- Reloj (hora real por internet, NTP) ----------
 // El ESP32 no tiene pila de reloj: al prender no sabe que hora es.
 // La tarea de red le pregunta la hora a un servidor de internet (NTP) y desde ahi la lleva sola.
@@ -299,10 +326,38 @@ bool enSilencio() { return horaLista() && enRango(silencioDesde, silencioHasta, 
 // tone() del ESP32 tiene su propia cola: las notas se mandan todas juntas y suenan
 // una detras de otra solas, sin trabar la pantalla ni los botones.
 // De noche (horario de silencio de rutina.json) solo suena el clic de los botones.
+unsigned long sonidoHasta = 0;  // cuando termina el ultimo sonido mandado (la musica espera hasta ahi)
+
 void sonar(const Nota* melodia) {
     if (!SONIDO_ACTIVADO) return;
     if (melodia != SONIDO_BOTON && enSilencio()) return;
-    for (int i = 0; melodia[i].ms > 0; i++) tone(PIN_BUZZER, melodia[i].freq, melodia[i].ms);
+    unsigned long total = 0;
+    for (int i = 0; melodia[i].ms > 0; i++) {
+        tone(PIN_BUZZER, melodia[i].freq, melodia[i].ms);
+        total += melodia[i].ms;
+    }
+    sonidoHasta = max(sonidoHasta, millis()) + total;
+}
+
+// La musica del juego NO se manda entera a la cola (si no, el sonido de agarrar un corazon
+// quedaria esperando a que termine la cancion). Se manda nota por nota desde el loop:
+// cuando termina una, va la siguiente. Si suena un efecto, la musica hace una pausa cortita.
+int musicaNota = 0;
+
+void empezarMusica() {
+    musicaNota = 0;
+    sonidoHasta = millis();
+}
+
+void seguirMusica() {
+    if (!SONIDO_ACTIVADO || enSilencio()) return;
+    if (millis() < sonidoHasta) return;  // todavia suena la nota anterior o un efecto
+    const Nota& n = MUSICA_JUEGO[musicaNota];
+    // la nota suena un poquito menos de lo que dura, asi dos notas iguales seguidas se escuchan separadas
+    if (n.freq > 0) tone(PIN_BUZZER, n.freq, n.ms * 85 / 100);
+    sonidoHasta = millis() + n.ms;
+    musicaNota++;
+    if (MUSICA_JUEGO[musicaNota].ms == 0) musicaNota = 0;  // termino: vuelve a empezar
 }
 
 // =====================================================================
@@ -541,6 +596,7 @@ void enviarAccion(const char* tipo, int puntos = 0) {
 int cantPreguntas() { return preguntasListas ? nPreguntasBajadas : N_PREGUNTAS_FIJAS; }
 const char* textoPregunta(int i) { return preguntasListas ? preguntasBajadas[i] : preguntasFijas[i]; }
 const char* clavePregunta(int i) { return preguntasListas ? clavesBajadas[i] : clavesFijas[i]; }
+const char* respuestaGuardada(int i) { return preguntasListas ? respuestasBajadas[i] : respuestasFijas[i]; }
 
 // Baja la lista de preguntas (GET /preguntas). Se llama solo desde la tarea de red.
 void descargarPreguntas() {
@@ -556,6 +612,7 @@ void descargarPreguntas() {
                 // las tildes se pasan a la tabla de la pantalla (ver aCp437)
                 strlcpy(preguntasBajadas[n], aCp437(p["pregunta"] | "").c_str(), sizeof(preguntasBajadas[n]));
                 strlcpy(clavesBajadas[n], p["clave"] | "", sizeof(clavesBajadas[n]));
+                strlcpy(respuestasBajadas[n], p["respuesta"] | "", sizeof(respuestasBajadas[n]));
                 n++;
             }
             if (n > 0) {
@@ -1312,6 +1369,7 @@ void dibujarJugar() {
     corazones = 0;
     juegoUltimoFrame = millis();
     juegoProximoObjeto = millis() + 800;
+    empezarMusica();
     dibujarFondoRLE(FONDO_PARQUE_COLOR, FONDO_PARQUE_CONTEO, FONDO_PARQUE_RUNS, FONDO_PARQUE_ANCHO, FONDO_PARQUE_ALTO, 1.0);
     dibujarEscenaJuego(robX, JUEGO_ROB_Y, JUEGO_ROB_LADO, JUEGO_ROB_LADO);
     dibujarEscenaJuego(HUD_X, HUD_Y, HUD_W, HUD_H);
@@ -1891,6 +1949,7 @@ void loop() {
             break;
 
         case P_JUGAR:
+            seguirMusica();
             if (millis() - juegoUltimoFrame >= JUEGO_FRAME_MS) {
                 juegoUltimoFrame = millis();
                 pasoJuego();
@@ -1961,11 +2020,20 @@ void loop() {
             }
             if (back) irA(P_MENU);
             if (sel) {
-                // primero Chaca con la burbuja "..." (pensando), despues la respuesta
-                respuestaActual = "...";
-                hablarDuracion = 0;
-                irA(P_INFO_RESPUESTA);
-                decirRespuesta(obtenerRespuesta(clavePregunta(cursorInfo)));
+                const char* guardada = respuestaGuardada(cursorInfo);
+                if (guardada[0]) {
+                    // ya la tiene guardada: contesta al instante
+                    respuestaActual = guardada;
+                    hablarDuracion = 0;
+                    irA(P_INFO_RESPUESTA);
+                    decirRespuesta(guardada);
+                } else {
+                    // primero Chaca con la burbuja "..." (pensando), despues la respuesta del servidor
+                    respuestaActual = "...";
+                    hablarDuracion = 0;
+                    irA(P_INFO_RESPUESTA);
+                    decirRespuesta(obtenerRespuesta(clavePregunta(cursorInfo)));
+                }
             }
             break;
 
