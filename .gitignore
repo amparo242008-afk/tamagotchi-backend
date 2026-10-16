@@ -9,3 +9,6 @@ yarn-error.log*
 # Notas personales del proyecto (no subir)
 Tamagotchi-Wokwi/contexto.md
 __pycache__/
+
+# WiFi de la casa (contrasena): no subir
+Tamagotchi-Wokwi/secretos.h

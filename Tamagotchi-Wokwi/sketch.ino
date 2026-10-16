@@ -49,10 +49,18 @@
 #include "fondos/bienvenida.h"
 
 // ---------- 2. Configuracion ----------
-// Red WiFi. "Wokwi-GUEST" es la red falsa del simulador; con la placa real
-// aca va el nombre y la contrasena del WiFi de la casa.
-const char* ssid = "Wokwi-GUEST";
-const char* password = "";
+// Red WiFi. "Wokwi-GUEST" es la red falsa del simulador. El WiFi de la casa va en
+// secretos.h (WIFI_NOMBRE y WIFI_CLAVE), que NO se sube a GitHub (esta en .gitignore).
+// Si secretos.h no existe, o si Chaca ve la red del simulador, usa Wokwi-GUEST.
+#define WOKWI_RED "Wokwi-GUEST"
+#if __has_include("secretos.h")
+#include "secretos.h"
+#define HAY_WIFI_CASA true
+#else
+#define WIFI_NOMBRE WOKWI_RED
+#define WIFI_CLAVE ""
+#define HAY_WIFI_CASA false
+#endif
 
 // Direccion del servidor (server.js, subido a Render). Todas las consultas empiezan con esto.
 const char* urlBase = "https://tamagotchi-api-9vk6.onrender.com";
@@ -715,13 +723,32 @@ void enviarRegistro(int rango, const char* respuesta) {
     xQueueSend(colaAcciones, &p, 0);
 }
 
+// Elige la red: si se ve Wokwi-GUEST estamos en el simulador; si no, el WiFi de la casa.
+void conectarWiFi() {
+    WiFi.mode(WIFI_STA);
+    if (HAY_WIFI_CASA) {
+        int n = WiFi.scanNetworks();  // tarda 2 o 3 segundos
+        for (int i = 0; i < n; i++) {
+            if (WiFi.SSID(i) == WOKWI_RED) {
+                Serial.println("WiFi: simulador");
+                WiFi.begin(WOKWI_RED, "");
+                return;
+            }
+        }
+    }
+    Serial.printf("WiFi: %s\n", WIFI_NOMBRE);
+    WiFi.begin(WIFI_NOMBRE, WIFI_CLAVE);
+}
+
 // Tarea de red: corre sola en el nucleo 0, mientras el loop (nucleo 1) dibuja y lee botones.
 // 1) espera el WiFi (hasta 10 s), 2) pide la hora, 3) baja stats, preguntas y agenda,
 // 4) despues se queda para siempre: si llega un pedido a la cola lo manda;
 //    si pasa un rato sin pedidos (intervaloConsultaMs), vuelve a pedir los stats.
 void tareaRed(void*) {
+    conectarWiFi();  // aca y no en setup: asi la busqueda de redes no frena la bienvenida
     unsigned long inicioWiFi = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - inicioWiFi < 10000) vTaskDelay(pdMS_TO_TICKS(100));
+    Serial.println(WiFi.status() == WL_CONNECTED ? "WiFi conectado" : "WiFi: no conecto (sigue intentando solo)");
     // Hora de Argentina (UTC-3) desde internet
     configTime(-3 * 3600, 0, "pool.ntp.org", "time.google.com");
     for (int i = 0; i < 50 && !horaLista(); i++) vTaskDelay(pdMS_TO_TICKS(100));
@@ -1835,7 +1862,6 @@ void setup() {
     tft.println("Iniciando Chaca...");
 
     irA(P_BIENVENIDA);  // Chaca saluda afuera y espera que aprieten un boton para entrar
-    WiFi.begin(ssid, password);  // empieza a conectar, pero no espera (eso lo hace la tarea de red)
 
     // La red corre aparte (nucleo 0): Chaca ya se puede usar mientras conecta.
     // Prioridad 0 (la mas baja): el cifrado HTTPS tarda varios segundos y si no
