@@ -66,6 +66,9 @@ const char* urlBase = "https://tamagotchi-api-9vk6.onrender.com";
 #define TFT_MOSI 23
 #define TFT_SCK 18
 #define TFT_MISO 19
+// Velocidad de los datos a la pantalla. La libreria usa 40 MHz, pero con cables dupont
+// largos el dibujo llega con rayas y manchas. Si vuelven a aparecer, bajar a 10000000.
+#define TFT_VELOCIDAD 20000000
 // "tft" es la pantalla: todo lo que se dibuja pasa por aca (tft.fillRect, tft.print...)
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 
@@ -1822,7 +1825,7 @@ void setup() {
     pinMode(PIN_BACK, INPUT_PULLUP);
 
     SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
-    tft.begin();
+    tft.begin(TFT_VELOCIDAD);
     tft.setRotation(0);  // vertical (240 de ancho x 320 de alto)
 
     tft.fillScreen(ILI9341_BLACK);
