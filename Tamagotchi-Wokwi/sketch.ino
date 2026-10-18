@@ -262,6 +262,9 @@ unsigned long ultimoCambioDormir = 0;
 
 // Como estaba cada boton en la vuelta anterior del loop (ver sePresiono)
 bool navAnterior = false, selectAnterior = false, backAnterior = false;
+// Modo demo (ver "Modo demo" mas abajo): Chaca recorre todo sola, sin internet
+bool modoDemo = false;
+bool demoIzq = false, demoDer = false;  // en el juego, la demo "mantiene apretado" izquierda o derecha
 
 // =====================================================================
 // 4. SONIDO Y RELOJ
@@ -599,6 +602,7 @@ void enviarAccion(const char* tipo, int puntos = 0) {
     if (strcmp(tipo, "alimentar") == 0) hambreActual = min(100, hambreActual + 30);
     if (strcmp(tipo, "jugar") == 0) dopaminaActual = min(100, dopaminaActual + min(50, 5 + puntos * 3));
     statsNuevos = true;
+    if (modoDemo) return;  // la demo no manda nada al servidor
     Pedido p = {tipo, puntos, nullptr};
     xQueueSend(colaAcciones, &p, 0);
 }
@@ -719,6 +723,7 @@ void enviarRegistroAhora(int rango, const char* respuesta) {
 
 // Desde las pantallas: anota que Chaca pregunto ("aviso") o la respuesta de la persona (si / mas_tarde / sin_respuesta)
 void enviarRegistro(int rango, const char* respuesta) {
+    if (modoDemo) return;  // la demo no anota nada en el historial
     Pedido p = {"registro", rango, respuesta};
     xQueueSend(colaAcciones, &p, 0);
 }
@@ -1409,8 +1414,8 @@ void dibujarJugar() {
 // Se llama ~30 veces por segundo.
 void pasoJuego() {
     // aca NO se usa sePresiono: mientras se mantiene apretado, Chaca sigue corriendo
-    bool izq = digitalRead(PIN_NAV) == LOW;
-    bool der = digitalRead(PIN_SELECT) == LOW;
+    bool izq = digitalRead(PIN_NAV) == LOW || demoIzq;
+    bool der = digitalRead(PIN_SELECT) == LOW || demoDer;
 
     // Chaca
     int viejoX = robX;
@@ -1835,6 +1840,114 @@ void irA(int nueva) {
     }
 }
 
+// ---------- Modo demo (para el video y la presentacion) ----------
+// Chaca recorre todo sola, "apretando" los botones por su cuenta, siguiendo un guion que se repite.
+// Se activa manteniendo SELECT apretado al prender (o poniendo MODO_DEMO_SIEMPRE en true,
+// para grabar el video en Wokwi). En modo demo NO se conecta a internet: no ensucia el
+// historial ni el panel, y no depende del WiFi. Un boton de verdad la corta y Chaca arranca normal.
+#define MODO_DEMO_SIEMPRE false  // true = siempre demo, false = demo solo si se mantiene SELECT al prender
+
+enum PasoDemo {
+    D_NAV, D_SEL, D_BACK,             // "aprieta" un boton
+    D_DER, D_IZQ, D_QUIETO,           // en el juego: corre a la derecha, a la izquierda, se para
+    D_MENU_A, D_COMIDA_A, D_INFO_A, D_AVISO_A,  // mueve la flechita hasta la opcion "valor"
+    D_AVISO_COMIDA, D_AVISO_ACTIVIDAD,          // Chaca pregunta (sin esperar el horario)
+    D_REINICIAR                       // vuelve a la bienvenida y empieza otra vez
+};
+struct Demo { PasoDemo paso; int valor; unsigned int espera; };  // espera = ms antes de hacer el paso
+const Demo GUION_DEMO[] = {
+    {D_SEL, 0, 3500},                         // bienvenida: saluda y entra corriendo
+    {D_AVISO_COMIDA, 0, 4000},                // "¿Ya almorzaste?"
+    {D_SEL, 0, 3000},                         // "Si" -> eligen la comida juntos
+    {D_COMIDA_A, 3, 1500},                    // hasta la hamburguesa
+    {D_SEL, 0, 1200},                         // come en la cocina y vuelve festejando
+    {D_SEL, 0, 6000},                         // menu
+    {D_MENU_A, MENU_BANO, 1500},
+    {D_SEL, 0, 1000},                         // se bana
+    {D_SEL, 0, 6500},                         // menu
+    {D_MENU_A, MENU_JUGAR, 1500},
+    {D_SEL, 0, 1000},                         // juego: atrapar corazones
+    {D_DER, 0, 1500}, {D_IZQ, 0, 1400}, {D_DER, 0, 1600}, {D_QUIETO, 0, 900}, {D_IZQ, 0, 1200},
+    {D_DER, 0, 1500}, {D_QUIETO, 0, 1300}, {D_IZQ, 0, 1000}, {D_QUIETO, 0, 1500},
+    {D_BACK, 0, 2000},                        // "¡Bien jugado!"
+    {D_SEL, 0, 3500},                         // vuelve festejando
+    {D_SEL, 0, 3500},                         // menu
+    {D_MENU_A, MENU_INFO, 1500},
+    {D_SEL, 0, 1000},                         // preguntas
+    {D_INFO_A, 1, 1500},                      // "Color favorito"
+    {D_SEL, 0, 1000},
+    {D_BACK, 0, 4500},
+    {D_INFO_A, 2, 1000},                      // "Comida favorita"
+    {D_SEL, 0, 1000},
+    {D_BACK, 0, 4500},
+    {D_BACK, 0, 1500},                        // al menu
+    {D_MENU_A, MENU_DORMIR, 1200},
+    {D_SEL, 0, 1000},                         // a dormir
+    {D_NAV, 0, 6000},                         // se despierta saludando
+    {D_AVISO_ACTIVIDAD, 0, 4000},             // "¿Salimos a caminar un ratito?"
+    {D_AVISO_A, OPC_HOY_PASO, 2500},          // elige "Hoy paso": Chaca saluda, sin reproches
+    {D_SEL, 0, 1500},
+    {D_REINICIAR, 0, 5000},
+};
+const int N_GUION_DEMO = sizeof(GUION_DEMO) / sizeof(GUION_DEMO[0]);
+int demoPaso = 0;
+unsigned long demoDesde = 0;
+bool demoMoviendo = false;  // true = esta llevando la flechita hacia una opcion (pasos mas rapidos)
+
+// Stats de mentira para la demo (con sueno, asi se puede ir a dormir)
+void statsDemo() {
+    hambreActual = 45;
+    suenoActual = 40;
+    dopaminaActual = 60;
+    statsNuevos = true;
+}
+
+// Dos rangos de mentira para que Chaca pregunte en la demo sin esperar el horario.
+// rutinaLista queda en false: la agenda de verdad nunca pregunta sola.
+void rangosDemo() {
+    memset(rangos, 0, sizeof(Rango) * 2);
+    strlcpy(rangos[0].clave, "almuerzo", sizeof(rangos[0].clave));
+    strlcpy(rangos[0].pregunta, "¿Ya almorzaste?", sizeof(rangos[0].pregunta));
+    rangos[0].actividad = ACT_COMIDA;
+    strlcpy(rangos[1].clave, "actividad", sizeof(rangos[1].clave));
+    strlcpy(rangos[1].pregunta, "¿Salimos a caminar un ratito?", sizeof(rangos[1].pregunta));
+    rangos[1].actividad = ACT_ACTIVIDAD;
+    nRangos = 2;
+}
+
+// Se llama en cada vuelta del loop: si ya paso la espera, hace el paso que toca del guion
+void pasoDemo(bool& nav, bool& sel, bool& back) {
+    const Demo& d = GUION_DEMO[demoPaso];
+    if (millis() - demoDesde < (demoMoviendo ? 600UL : d.espera)) return;
+    demoDesde = millis();
+    // pasos que mueven la flechita: un "Nav" por vez hasta llegar a la opcion
+    int* cursor = d.paso == D_MENU_A ? &cursorMenu : d.paso == D_COMIDA_A ? &cursorComida
+                : d.paso == D_INFO_A ? &cursorInfo : d.paso == D_AVISO_A ? &cursorAviso : nullptr;
+    if (cursor && *cursor != d.valor) {
+        nav = true;
+        demoMoviendo = true;
+        return;
+    }
+    demoMoviendo = false;
+    switch (d.paso) {
+        case D_NAV: nav = true; break;
+        case D_SEL: sel = true; break;
+        case D_BACK: back = true; demoIzq = demoDer = false; break;
+        case D_DER: demoDer = true; demoIzq = false; break;
+        case D_IZQ: demoIzq = true; demoDer = false; break;
+        case D_QUIETO: demoIzq = demoDer = false; break;
+        case D_AVISO_COMIDA: rangos[0].avisos = 0; mostrarAviso(0); break;
+        case D_AVISO_ACTIVIDAD: rangos[1].avisos = 0; mostrarAviso(1); break;
+        case D_REINICIAR:
+            statsDemo();
+            irA(P_BIENVENIDA);  // (la bienvenida ya toca la melodia de inicio)
+            demoPaso = 0;
+            return;
+        default: break;
+    }
+    demoPaso = (demoPaso + 1) % N_GUION_DEMO;
+}
+
 // =====================================================================
 // 10. SETUP Y LOOP
 // =====================================================================
@@ -1850,6 +1963,17 @@ void setup() {
     pinMode(PIN_NAV, INPUT_PULLUP);
     pinMode(PIN_SELECT, INPUT_PULLUP);
     pinMode(PIN_BACK, INPUT_PULLUP);
+    delay(5);
+
+    // SELECT apretado al prender = modo demo
+    modoDemo = MODO_DEMO_SIEMPRE || digitalRead(PIN_SELECT) == LOW;
+    if (modoDemo) {
+        Serial.println("MODO DEMO (sin internet)");
+        selectAnterior = digitalRead(PIN_SELECT) == LOW;  // soltar SELECT no cuenta como apretar
+        statsDemo();
+        rangosDemo();
+        demoDesde = millis();
+    }
 
     SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
     tft.begin(TFT_VELOCIDAD);
@@ -1869,7 +1993,7 @@ void setup() {
     // Cola con lugar para 8 pedidos. Despues se lanza tareaRed: 16384 bytes de memoria
     // para ella, prioridad minima, en el nucleo 0.
     colaAcciones = xQueueCreate(8, sizeof(Pedido));
-    xTaskCreatePinnedToCore(tareaRed, "red", 16384, nullptr, tskIDLE_PRIORITY, nullptr, 0);
+    if (!modoDemo) xTaskCreatePinnedToCore(tareaRed, "red", 16384, nullptr, tskIDLE_PRIORITY, nullptr, 0);
 }
 
 // loop(): se repite para siempre. En cada vuelta:
@@ -1881,6 +2005,12 @@ void loop() {
     bool nav = sePresiono(PIN_NAV, navAnterior);
     bool sel = sePresiono(PIN_SELECT, selectAnterior);
     bool back = sePresiono(PIN_BACK, backAnterior);
+    if (modoDemo) {
+        // en el juego Nav y Select se mantienen apretados para correr: ahi no cortan la demo
+        bool deVerdad = pantallaActual == P_JUGAR ? back : (nav || sel || back);
+        if (deVerdad && !MODO_DEMO_SIEMPRE) ESP.restart();  // un boton de verdad corta la demo
+        pasoDemo(nav, sel, back);
+    }
     if ((nav || sel || back) && pantallaActual != P_JUGAR) sonar(SONIDO_BOTON);  // "clic" suave (en el juego no)
 
     // Llegaron stats nuevos del servidor: actualizar lo que se ve
