@@ -284,8 +284,8 @@ Es como un **Excel con varias hojas (tablas)**, pero que vive en internet y no s
 
 ## 9. El panel del acompañante
 
-**Dirección:** https://tamagotchi-api-9vk6.onrender.com/panel
-**Con datos de ejemplo:** https://tamagotchi-api-9vk6.onrender.com/panel?demo=1
+- **Dirección:** https://tamagotchi-api-9vk6.onrender.com/panel
+- **Con datos de ejemplo:** https://tamagotchi-api-9vk6.onrender.com/panel?demo=1
 
 - **Entrar**: usuario y contraseña (`PANEL_USUARIO` y `PANEL_CLAVE`, configurados en Render). Queda la sesión abierta 30 días.
 - **Seguimiento**: una grilla de 14 o 30 días con cada rango (confirmó, confirmó después de posponer, hoy paso, sin respuesta), el detalle de hoy y el historial.
