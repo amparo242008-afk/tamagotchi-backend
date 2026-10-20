@@ -731,6 +731,10 @@ void enviarRegistro(int rango, const char* respuesta) {
 // Elige la red: si se ve Wokwi-GUEST estamos en el simulador; si no, el WiFi de la casa.
 void conectarWiFi() {
     WiFi.mode(WIFI_STA);
+    // Potencia del WiFi mas baja (la maxima es 19.5 dBm): alcanza para una casa y el pico de
+    // corriente al conectar es mas chico. Con la maxima, un puerto USB flojo o pilas gastadas
+    // hacian que la placa se reinicie ("Brownout detector was triggered").
+    WiFi.setTxPower(WIFI_POWER_11dBm);
     if (HAY_WIFI_CASA) {
         int n = WiFi.scanNetworks();  // tarda 2 o 3 segundos
         for (int i = 0; i < n; i++) {

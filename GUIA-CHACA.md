@@ -308,14 +308,14 @@ Es como un **Excel con varias hojas (tablas)**, pero que vive en internet y no s
 - **Plan gratis de Render**, lo que hay que saber:
   - El servidor **se duerme** si nadie le habla en 15 minutos, y tarda alrededor de 1 minuto en despertar. Por eso Chaca espera hasta 60 segundos y reintenta 3 veces.
   - **750 horas gratis por mes**, compartidas entre todos los servicios de la cuenta. Chaca prendida todo el mes usa unas 720.
-  - **La base de datos gratis vence a los 30 días** de crearla. La de la prueba se crea el 22/10 y dura hasta el ~21/11, después de la presentación.
+  - **La base de datos gratis vence a los 30 días** de crearla. La de la prueba se crea el 29/10 y dura hasta el ~28/11, después de la expo (que es a más tardar el 27/11).
 
 ---
 
 ## 11. Cómo hago... (recetas)
 
 ### Subir el código a la placa
-1. Enchufá la placa a la compu.
+1. Enchufá la placa a la compu, **en un puerto de atrás**.
 2. En VS Code, abajo, tocá la **flechita →** de PlatformIO (*Upload*).
 3. Cuando en la terminal aparezca **`Connecting....`**, **mantené apretado BOOT** hasta que empiece a decir `Writing at...`. Ahí lo soltás.
 4. Cuando dice `SUCCESS`, listo: la placa se reinicia sola.
@@ -361,7 +361,8 @@ Compilá con el **✓** y después **F1 → "Wokwi: Start Simulator"**.
 | No se conecta al WiFi | ¿La red es de **2.4 GHz**? ¿Están bien el nombre y la clave en `secretos.h`? |
 | Tarda mucho en mostrar los stats | El servidor de Render se estaba despertando. Esperá un minuto |
 | El panel dice "Sin conexión" | Chaca está apagada o sin internet |
-| Se reinicia sola con pilas | Pilas gastadas: cambialas por nuevas |
+| Se queda en la pantalla de inicio, se reinicia sola y el buzzer zumba | Le falta energía: en el monitor serie dice **"Brownout detector was triggered"**. Enchufala en un **puerto USB de atrás** de la compu o en un cargador de celular (los de adelante dan menos corriente) |
+| Se reinicia sola con pilas o batería | Pilas gastadas o batería baja: cambialas o cargala |
 | En la presentación no hay WiFi | **Usá el modo demo**: no necesita internet |
 
 ---
