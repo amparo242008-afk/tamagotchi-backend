@@ -1,0 +1,993 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Chaca - Diagrama de carcasa</title>
+<style>
+@page { size: A4 landscape; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+.hoja { width: 297mm; height: 210mm; page-break-after: always; overflow: hidden; }
+.hoja:last-child { page-break-after: auto; }
+svg { display: block; font-family: 'Segoe UI', Arial, sans-serif; }
+.t1 { font-size: 7px; font-weight: 700; fill: #2b5d8a; }
+.t2 { font-size: 4px; font-weight: 700; fill: #2b5d8a; }
+.tx { font-size: 3.2px; fill: #222; }
+.tc { font-size: 2.6px; fill: #333; }
+.chico { font-size: 2.3px; fill: #555; }
+.cota { stroke: #777; stroke-width: 0.25; fill: none; }
+.caja { fill: #f6cfcb; stroke: #b33a33; stroke-width: 0.7; }
+.interior { fill: none; stroke: #b33a33; stroke-width: 0.3; stroke-dasharray: 1.5 1; }
+.punteado { fill: none; stroke: #444; stroke-width: 0.35; stroke-dasharray: 1.2 0.8; }
+.corte { fill: #fff; stroke: #111; stroke-width: 0.45; }
+.pieza { stroke: #333; stroke-width: 0.4; }
+</style></head><body>
+
+<!-- ================= HOJA 1: VISTA DE ARRIBA ================= -->
+<div class="hoja"><svg width="297mm" height="210mm" viewBox="0 0 297 210">
+  <text x="12" y="16" class="t1">Chaca · Carcasa estilo Pokédex · 1. Vista de arriba (parte de abajo, abierta)</text>
+  <text x="12" y="22" class="tx">Escala 1:1 — imprimir al 100% ("tamaño real", sin "ajustar a la página"). Comprobá con una regla que la caja mida 150 mm de ancho.</text>
+
+  <g transform="translate(34,38)">
+    <!-- bisagra y tapa (solo indicada) -->
+    <rect x="10" y="-10" width="130" height="7" rx="2" fill="#e0e0e0" stroke="#666" stroke-width="0.4"/>
+    <text x="75" y="-5.2" class="tc" text-anchor="middle">bisagra → la tapa lisa se abre hacia arriba (misma medida: 150 × 100 mm)</text>
+    <!-- caja -->
+    <rect x="0" y="0" width="150" height="100" rx="8" class="caja"/>
+    <rect x="3" y="3" width="144" height="94" rx="6" class="interior"/>
+
+    <!-- pantalla: modulo y ventana -->
+    <rect x="54" y="11.5" width="42" height="77" class="punteado"/>
+    <text x="75" y="92.2" class="chico" text-anchor="middle">placa de la pantalla 42 × 77 (por debajo)</text>
+    <rect x="56" y="22" width="38" height="50" class="corte"/>
+    <text x="75" y="45" class="t2" text-anchor="middle">VENTANA</text>
+    <text x="75" y="50" class="tc" text-anchor="middle">pantalla 38 × 50 mm</text>
+    <text x="75" y="54" class="chico" text-anchor="middle">(marcar sobre la</text>
+    <text x="75" y="57" class="chico" text-anchor="middle">pantalla real)</text>
+    <text x="75" y="19.5" class="chico" text-anchor="middle">↑ lado de la ranura SD</text>
+    <text x="75" y="84" class="chico" text-anchor="middle">↓ lado de los 9 pines</text>
+
+    <!-- buzzer: agujeritos tipo parlante pokedex -->
+    <rect x="16" y="42.5" width="18.5" height="15" class="punteado"/>
+    <g fill="#222">
+      <circle cx="21" cy="46.5" r="1.4"/><circle cx="29.5" cy="46.5" r="1.4"/>
+      <circle cx="25.25" cy="50" r="1.4"/>
+      <circle cx="21" cy="53.5" r="1.4"/><circle cx="29.5" cy="53.5" r="1.4"/>
+    </g>
+    <text x="25.25" y="40.5" class="tc" text-anchor="middle">BUZZER</text>
+    <text x="25.25" y="61" class="chico" text-anchor="middle">agujeritos Ø 3 mm</text>
+    <text x="25.25" y="63.8" class="chico" text-anchor="middle">(módulo 18,5 × 15 abajo)</text>
+
+    <!-- botones -->
+    <g>
+      <circle cx="122" cy="30" r="5" class="corte"/><text x="122" y="31.2" class="tc" text-anchor="middle">NAV</text>
+      <circle cx="122" cy="50" r="5" class="corte"/><text x="122" y="51.2" class="tc" text-anchor="middle">SEL</text>
+      <circle cx="122" cy="70" r="5" class="corte"/><text x="122" y="71.2" class="tc" text-anchor="middle">ATRÁS</text>
+    </g>
+    <text x="122" y="20.5" class="tc" text-anchor="middle">BOTONES Ø 10 mm*</text>
+
+    <!-- agujerito BOOT -->
+    <circle cx="140" cy="88" r="1.2" class="corte"/>
+    <text x="137.5" y="94" class="chico" text-anchor="end">agujerito BOOT Ø 2,5 (palillo)</text>
+
+    <!-- cortes en las paredes -->
+    <rect x="-1.5" y="12" width="4" height="9" fill="#fff" stroke="#111" stroke-width="0.45"/>
+    <text x="-3" y="15" class="chico" text-anchor="end">USB carga</text>
+    <text x="-3" y="18" class="chico" text-anchor="end">batería (TP4056)</text>
+    <rect x="-1.5" y="31" width="4" height="8" fill="#fff" stroke="#111" stroke-width="0.45"/>
+    <text x="-3" y="34" class="chico" text-anchor="end">Interruptor</text>
+    <text x="-3" y="37" class="chico" text-anchor="end">ON / OFF</text>
+    <rect x="147.5" y="71" width="4" height="10" fill="#fff" stroke="#111" stroke-width="0.45"/>
+    <text x="153" y="75" class="chico">USB-C ESP32</text>
+    <text x="153" y="78" class="chico">(subir código)</text>
+
+    <!-- cotas -->
+    <line x1="0" y1="108" x2="150" y2="108" class="cota"/>
+    <line x1="0" y1="105.5" x2="0" y2="110.5" class="cota"/><line x1="150" y1="105.5" x2="150" y2="110.5" class="cota"/>
+    <text x="75" y="113" class="tx" text-anchor="middle">150 mm</text>
+    <line x1="-14" y1="0" x2="-14" y2="100" class="cota"/>
+    <line x1="-16.5" y1="0" x2="-11.5" y2="0" class="cota"/><line x1="-16.5" y1="100" x2="-11.5" y2="100" class="cota"/>
+    <text x="-15.5" y="50" class="tx" text-anchor="middle" transform="rotate(-90 -15.5 50)">100 mm</text>
+  </g>
+
+  <g transform="translate(208,40)">
+    <text x="0" y="0" class="t2">Cómo se lee</text>
+    <text x="0" y="7" class="tx">▭ Línea llena con fondo blanco = agujero / corte</text>
+    <text x="0" y="12" class="tx">▭ Línea punteada = pieza que va por debajo</text>
+    <text x="0" y="17" class="tx">Paredes de 3 mm (línea punteada roja interior)</text>
+    <text x="0" y="28" class="t2">Altura de la caja</text>
+    <text x="0" y="35" class="tx">Parte de abajo: alto interior mínimo 30 mm</text>
+    <text x="0" y="40" class="tx">(ESP32 con pines hembra + batería + cables).</text>
+    <text x="0" y="45" class="tx">Tapa de arriba: lisa, sin nada, 150 × 100 mm.</text>
+    <text x="0" y="56" class="t2">A tener en cuenta</text>
+    <text x="0" y="63" class="tx">• La pantalla va VERTICAL (más alta que ancha).</text>
+    <text x="0" y="68" class="tx">• Medir la ventana sobre la pantalla real: el</text>
+    <text x="0" y="72.5" class="tx">  vidrio no está centrado en la placa roja.</text>
+    <text x="0" y="78" class="tx">• * Medir los botones que me dieron y ajustar</text>
+    <text x="0" y="82.5" class="tx">  el agujero (botón + 0,5 mm).</text>
+    <text x="0" y="88" class="tx">• Pantalla, botones y buzzer se pegan del lado</text>
+    <text x="0" y="92.5" class="tx">  de adentro de la cara de arriba.</text>
+    <text x="0" y="98" class="tx">• El agujerito BOOT queda justo arriba del botón</text>
+    <text x="0" y="102.5" class="tx">  BOOT de la ESP32 (ver hoja 2).</text>
+  </g>
+</svg></div>
+
+<!-- ================= HOJA 2: VISTA DE ADENTRO ================= -->
+<div class="hoja"><svg width="297mm" height="210mm" viewBox="0 0 297 210">
+  <text x="12" y="16" class="t1">2. Vista de adentro: dónde va cada pieza (piso de la caja)</text>
+  <text x="12" y="22" class="tx">Escala 1:1. Lo que está en gris claro con borde punteado está en la cara de arriba (pantalla, botones, buzzer), solo como referencia.</text>
+
+  <g transform="translate(34,38)">
+    <rect x="0" y="0" width="150" height="100" rx="8" class="caja"/>
+    <rect x="3" y="3" width="144" height="94" rx="6" class="interior"/>
+
+    <!-- TP4056 -->
+    <rect x="4" y="8" width="26" height="17" fill="#6fa8dc" fill-opacity="0.8" class="pieza"/>
+    <text x="17" y="15.5" class="tc" text-anchor="middle">CARGADOR</text>
+    <text x="17" y="19" class="chico" text-anchor="middle">TP4056 26×17</text>
+    <text x="17" y="22" class="chico" text-anchor="middle">USB → pared izq.</text>
+    <!-- interruptor -->
+    <rect x="4" y="32" width="12" height="6" fill="#999" class="pieza"/>
+    <text x="18" y="36.3" class="chico">interruptor</text>
+    <!-- step up -->
+    <rect x="35" y="8" width="37" height="17" fill="#93c47d" fill-opacity="0.85" class="pieza"/>
+    <text x="53.5" y="15.5" class="tc" text-anchor="middle">STEP-UP 5 V</text>
+    <text x="53.5" y="19" class="chico" text-anchor="middle">MT3608 37×17 (aprox.)</text>
+    <!-- bateria -->
+    <rect x="8" y="50" width="50" height="34" rx="2" fill="#ffd966" fill-opacity="0.9" class="pieza"/>
+    <text x="33" y="64" class="tc" text-anchor="middle">BATERÍA LiPo</text>
+    <text x="33" y="68" class="chico" text-anchor="middle">50 × 34 (ejemplo:</text>
+    <text x="33" y="71" class="chico" text-anchor="middle">medir la real)*</text>
+    <!-- placa perforada + esp32 -->
+    <rect x="77" y="56" width="70" height="40" fill="#d9c7a3" fill-opacity="0.6" class="pieza" stroke-dasharray="1 0.6"/>
+    <text x="79" y="60" class="chico">placa perforada 70 × 40</text>
+    <rect x="90" y="62" width="55" height="28" rx="1.5" fill="#333" class="pieza"/>
+    <text x="114" y="74" class="tc" text-anchor="middle" fill="#fff" style="fill:#fff">ESP32  55 × 28</text>
+    <text x="114" y="78" class="chico" text-anchor="middle" style="fill:#ddd">sobre tiras de pines hembra</text>
+    <rect x="143" y="72" width="5" height="8" fill="#bbb" stroke="#111" stroke-width="0.3"/>
+    <text x="141" y="70.5" class="chico" text-anchor="end" style="fill:#fff">USB-C →</text>
+    <circle cx="140" cy="88" r="1.6" fill="#fff" stroke="#c00" stroke-width="0.4"/>
+    <text x="137" y="88.8" class="chico" text-anchor="end" style="fill:#fff">BOOT</text>
+
+    <!-- referencia cara de arriba -->
+    <rect x="54" y="11.5" width="42" height="77" fill="none" class="punteado" style="stroke:#555;stroke-width:0.45"/>
+    <text x="70" y="86" class="chico" text-anchor="middle">pantalla (arriba)</text>
+    <rect x="16" y="42.5" width="18.5" height="15" fill="none" class="punteado" style="stroke:#555;stroke-width:0.45"/>
+    <text x="44" y="47" class="chico">buzzer (arriba)</text>
+    <circle cx="122" cy="30" r="5" fill="none" class="punteado" style="stroke:#555;stroke-width:0.45"/>
+    <circle cx="122" cy="50" r="5" fill="none" class="punteado" style="stroke:#555;stroke-width:0.45"/>
+    <circle cx="122" cy="70" r="5" fill="none" class="punteado" style="stroke:#555;stroke-width:0.45"/>
+
+    <text x="122" y="20.5" class="chico" text-anchor="middle">botones (arriba)</text>
+    <!-- recorrido de cables de energia -->
+    <path d="M30 16.5 L35 16.5" stroke="#c00" stroke-width="0.6" fill="none"/>
+    <path d="M20 25 L20 32" stroke="#c00" stroke-width="0.6" fill="none"/>
+    <path d="M72 16.5 L84 16.5 L84 66 L90 66" stroke="#c00" stroke-width="0.6" fill="none" stroke-dasharray="2 1"/>
+    <text x="85.5" y="40" class="chico">5 V → VIN</text>
+    <path d="M33 50 L33 30 L17 30 L17 25" stroke="#c00" stroke-width="0.6" fill="none" stroke-dasharray="2 1"/>
+    <text x="34.5" y="44" class="chico">B+ / B−</text>
+
+    <!-- cotas -->
+    <line x1="0" y1="108" x2="150" y2="108" class="cota"/>
+    <text x="75" y="113" class="tx" text-anchor="middle">150 mm</text>
+  </g>
+
+  <g transform="translate(208,40)">
+    <text x="0" y="0" class="t2">Cómo se acomoda</text>
+    <text x="0" y="7" class="tx">• Abajo de todo (piso): batería, cargador,</text>
+    <text x="0" y="11.5" class="tx">  step-up, interruptor y la placa perforada</text>
+    <text x="0" y="16" class="tx">  con la ESP32.</text>
+    <text x="0" y="21.5" class="tx">• Arriba (pegados a la tapa de abajo, por</text>
+    <text x="0" y="26" class="tx">  dentro): pantalla, 3 botones y buzzer,</text>
+    <text x="0" y="30.5" class="tx">  unidos a la ESP32 con cables flexibles.</text>
+    <text x="0" y="36" class="tx">• El USB-C de la ESP32 apoyado contra la pared</text>
+    <text x="0" y="40.5" class="tx">  derecha, para subir código sin abrir.</text>
+    <text x="0" y="46" class="tx">• El USB del cargador contra la pared izquierda.</text>
+    <text x="0" y="51.5" class="tx">• El botón BOOT de la ESP32 queda debajo del</text>
+    <text x="0" y="56" class="tx">  agujerito de la hoja 1.</text>
+    <text x="0" y="67" class="t2">Alturas aproximadas</text>
+    <text x="0" y="74" class="tx">Placa perforada + pines hembra + ESP32 ≈ 15 mm</text>
+    <text x="0" y="79" class="tx">Batería LiPo ≈ 5 a 10 mm</text>
+    <text x="0" y="84" class="tx">Pantalla + pines ≈ 12 mm · Botones ≈ 5 a 10 mm</text>
+    <text x="0" y="89" class="tx">→ Por eso, 30 mm de alto interior.</text>
+    <text x="0" y="99" class="tx">* Si la batería es más grande, se corre la</text>
+    <text x="0" y="103.5" class="tx">  batería; la ESP32 queda donde está.</text>
+  </g>
+</svg></div>
+
+<!-- ================= HOJA 3: CONEXIONES ================= -->
+<div class="hoja"><svg width="297mm" height="210mm" viewBox="0 0 297 210">
+  <text x="12" y="16" class="t1">3. Conexiones: qué se suelda con qué</text>
+
+  <!-- cadena de energia -->
+  <text x="14" y="30" class="t2">Energía (de la batería a la placa)</text>
+  <g transform="translate(14,36)" font-size="3.4">
+    <rect x="0" y="0" width="36" height="20" rx="2" fill="#ffd966" stroke="#333" stroke-width="0.4"/>
+    <text x="18" y="9" class="tx" text-anchor="middle" font-weight="700">BATERÍA LiPo</text>
+    <text x="18" y="14" class="chico" text-anchor="middle">3,7 V</text>
+    <rect x="52" y="0" width="40" height="20" rx="2" fill="#6fa8dc" stroke="#333" stroke-width="0.4"/>
+    <text x="72" y="9" class="tx" text-anchor="middle" font-weight="700">CARGADOR TP4056</text>
+    <text x="72" y="14" class="chico" text-anchor="middle">con protección (6 contactos)</text>
+    <rect x="108" y="0" width="30" height="20" rx="2" fill="#bbb" stroke="#333" stroke-width="0.4"/>
+    <text x="123" y="9" class="tx" text-anchor="middle" font-weight="700">INTERRUPTOR</text>
+    <text x="123" y="14" class="chico" text-anchor="middle">solo el cable +</text>
+    <rect x="154" y="0" width="38" height="20" rx="2" fill="#93c47d" stroke="#333" stroke-width="0.4"/>
+    <text x="173" y="9" class="tx" text-anchor="middle" font-weight="700">STEP-UP</text>
+    <text x="173" y="14" class="chico" text-anchor="middle">ajustado a 5,0 V</text>
+    <rect x="208" y="0" width="34" height="20" rx="2" fill="#333" stroke="#333" stroke-width="0.4"/>
+    <text x="225" y="9" class="tx" text-anchor="middle" font-weight="700" style="fill:#fff">ESP32</text>
+    <text x="225" y="14" class="chico" text-anchor="middle" style="fill:#ddd">VIN y GND</text>
+    <g stroke="#c00" stroke-width="0.7"><line x1="36" y1="10" x2="52" y2="10"/><line x1="92" y1="10" x2="108" y2="10"/><line x1="138" y1="10" x2="154" y2="10"/><line x1="192" y1="10" x2="208" y2="10"/></g>
+    <text x="44" y="7.5" class="chico" text-anchor="middle">→ B+ / B−</text>
+    <text x="100" y="7.5" class="chico" text-anchor="middle">OUT+</text>
+    <text x="146" y="7.5" class="chico" text-anchor="middle">IN+</text>
+    <text x="200" y="7.5" class="chico" text-anchor="middle">OUT+ → VIN</text>
+    <text x="0" y="28" class="tx">Los negativos (B−, OUT−, IN−, OUT− del step-up) van todos juntos al GND de la ESP32. El interruptor corta solo el cable positivo.</text>
+  </g>
+
+  <!-- tabla de senales -->
+  <text x="14" y="76" class="t2">Señales (cables de la ESP32 a cada cosa)</text>
+  <g transform="translate(14,80)">
+    <rect x="0" y="0" width="128" height="7" fill="#e8f1f9"/>
+    <text x="2" y="5" class="tc" font-weight="700">Pieza · pin</text><text x="62" y="5" class="tc" font-weight="700">→ ESP32</text><text x="88" y="5" class="tc" font-weight="700">Color sugerido</text>
+    <g class="tc">
+      <text x="2" y="12">Pantalla · VCC</text><text x="62" y="12">3V3</text><text x="88" y="12">rojo</text>
+      <text x="2" y="17">Pantalla · LED</text><text x="62" y="17">3V3</text><text x="88" y="17">rojo</text>
+      <text x="2" y="22">Pantalla · GND</text><text x="62" y="22">GND</text><text x="88" y="22">negro</text>
+      <text x="2" y="27">Pantalla · CS</text><text x="62" y="27">G5</text><text x="88" y="27">blanco</text>
+      <text x="2" y="32">Pantalla · RESET</text><text x="62" y="32">G22</text><text x="88" y="32">naranja</text>
+      <text x="2" y="37">Pantalla · DC</text><text x="62" y="37">G21</text><text x="88" y="37">amarillo</text>
+      <text x="2" y="42">Pantalla · SDI (MOSI)</text><text x="62" y="42">G23</text><text x="88" y="42">verde</text>
+      <text x="2" y="47">Pantalla · SCK</text><text x="62" y="47">G18</text><text x="88" y="47">azul</text>
+      <text x="2" y="52">Pantalla · SDO (MISO)</text><text x="62" y="52">G19</text><text x="88" y="52">violeta</text>
+      <text x="2" y="57">Buzzer · S</text><text x="62" y="57">G26</text><text x="88" y="57">gris</text>
+      <text x="2" y="62">Buzzer · +  /  −</text><text x="62" y="62">3V3 / GND</text><text x="88" y="62">rojo / negro</text>
+      <text x="2" y="67">Botón NAV</text><text x="62" y="67">G32 y GND</text><text x="88" y="67">—</text>
+      <text x="2" y="72">Botón SELECT</text><text x="62" y="72">G33 y GND</text><text x="88" y="72">—</text>
+      <text x="2" y="77">Botón ATRÁS</text><text x="62" y="77">G25 y GND</text><text x="88" y="77">—</text>
+    </g>
+    <g stroke="#c9d8e6" stroke-width="0.25">
+      <line x1="0" y1="7" x2="128" y2="7"/><line x1="0" y1="24" x2="128" y2="24"/><line x1="0" y1="54" x2="128" y2="54"/><line x1="0" y1="64" x2="128" y2="64"/><line x1="0" y1="79" x2="128" y2="79"/>
+    </g>
+  </g>
+
+  <g transform="translate(160,80)">
+    <text x="0" y="0" class="t2">Importante</text>
+    <text x="0" y="7" class="tx">• 3V3 es una SALIDA: alimenta pantalla y buzzer.</text>
+    <text x="0" y="12" class="tx">  Nunca le llega la batería ni el step-up.</text>
+    <text x="0" y="18" class="tx">• La energía entra por VIN (5 V del step-up).</text>
+    <text x="0" y="24" class="tx">• Todos los GND unidos (batería, módulos,</text>
+    <text x="0" y="29" class="tx">  ESP32, pantalla, buzzer y botones).</text>
+    <text x="0" y="35" class="tx">• Botones: de cada uno, una patita al pin y otra</text>
+    <text x="0" y="40" class="tx">  a GND. Sin resistencias (la ESP32 usa su</text>
+    <text x="0" y="45" class="tx">  resistencia interna, INPUT_PULLUP).</text>
+    <text x="0" y="51" class="tx">• Pulsador de 4 patitas: las patitas están unidas</text>
+    <text x="0" y="56" class="tx">  de a pares por dentro. Usar dos en diagonal.</text>
+    <text x="0" y="62" class="tx">• En el pin "5V" de la ESP32 NO va nada.</text>
+    <text x="0" y="68" class="tx">• Pines G6 a G11 NO se usan (son de la memoria).</text>
+  </g>
+</svg></div>
+
+<!-- ================= HOJA 4: MEDIDAS Y CONSEJOS ================= -->
+<div class="hoja"><svg width="297mm" height="210mm" viewBox="0 0 297 210">
+  <text x="12" y="16" class="t1">4. Antes de cortar y soldar</text>
+
+  <g transform="translate(14,30)">
+    <text x="0" y="0" class="t2">Medir y anotar (las medidas del diagrama son típicas)</text>
+    <g class="tx">
+      <text x="0" y="9">☐ Pantalla: placa roja (largo × ancho): ________  ·  vidrio visible: ________</text>
+      <text x="0" y="16">☐ Pantalla: distancia del vidrio al borde de la ranura SD: ________</text>
+      <text x="0" y="23">☐ Botones: diámetro del botoncito: ________  ·  alto: ________</text>
+      <text x="0" y="30">☐ Batería: largo × ancho × alto: ________</text>
+      <text x="0" y="37">☐ Cargador TP4056: ________  ·  Step-up: ________  ·  Interruptor: ________</text>
+      <text x="0" y="44">☐ ESP32 con pines (largo × ancho × alto): ________</text>
+      <text x="0" y="51">☐ Buzzer (módulo): ________</text>
+    </g>
+
+    <text x="0" y="68" class="t2">Al soldar</text>
+    <g class="tx">
+      <text x="0" y="77">• La ESP32 va sobre <tspan font-weight="700">tiras de pines hembra</tspan> soldadas a la placa perforada: así se puede sacar y cambiar sin desoldar.</text>
+      <text x="0" y="84">• Lo que va en la cara de arriba (pantalla, botones, buzzer) se une con <tspan font-weight="700">cable flexible</tspan> (multifilar), dejando 3 a 4 cm de más.</text>
+      <text x="0" y="91">• <tspan font-weight="700">Step-up:</tspan> ajustar el tornillito a <tspan font-weight="700">5,0 V con el tester ANTES</tspan> de conectarlo a la ESP32 (puede venir dando más).</text>
+      <text x="0" y="98">• Soldar <tspan font-weight="700">sin la batería conectada</tspan>. No invertir B+ y B−: el cargador no tiene protección contra eso.</text>
+      <text x="0" y="105">• Cargador TP4056: usar la versión <tspan font-weight="700">con protección</tspan> (6 contactos: IN, B+/B−, OUT+/OUT−).</text>
+      <text x="0" y="112">• Cubrir cada soldadura con <tspan font-weight="700">termocontraíble</tspan> o cinta, para que nada se toque dentro de la caja.</text>
+      <text x="0" y="119">• Probar todo en la protoboard ANTES de soldar, y después de soldar, probar antes de cerrar la caja.</text>
+    </g>
+
+    <text x="0" y="136" class="t2">Para probar con el tester (antes de enchufar la ESP32)</text>
+    <g class="tx">
+      <text x="0" y="145">1. Batería: entre 3,7 y 4,2 V.   2. Salida del step-up (con el interruptor en ON): 5,0 V.</text>
+      <text x="0" y="152">3. Entre 3V3 y GND no tiene que haber continuidad (si el tester "pita", hay un cortocircuito).</text>
+    </g>
+  </g>
+</svg></div>
+
+
+<div class="hoja" id="placa"><svg width="297mm" height="210mm" viewBox="0 0 297 210">
+<style>.pin{font-size:2.3px;fill:#222} .lbl{font-size:2.8px;font-weight:700;fill:#2b5d8a}</style>
+  <text x="12" y="16" class="t1">5. La placa perforada: qué se suelda y dónde</text>
+  <text x="12" y="22" class="tx">Dibujo AGRANDADO al doble (escala 2:1). Placa perforada de 7 × 5 cm (27 × 19 agujeros). Vista desde arriba; las líneas de colores son cablecitos soldados por debajo.</text>
+  <rect x="14" y="34" width="142.24" height="101.60" rx="2" fill="#e9d8b4" stroke="#8a6d3b" stroke-width="0.5"/>
+<circle cx="16.54" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="16.54" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="21.62" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="26.70" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="31.78" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="36.86" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="41.94" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="47.02" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="52.10" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="57.18" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="62.26" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="67.34" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="72.42" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="77.50" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="82.58" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="87.66" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="92.74" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="97.82" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="102.90" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="107.98" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="113.06" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="118.14" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="123.22" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="128.30" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="133.38" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="138.46" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="143.54" cy="127.98" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="36.54" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="41.62" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="46.70" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="51.78" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="56.86" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="61.94" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="67.02" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="72.10" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="77.18" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="82.26" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="87.34" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="92.42" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="97.50" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="102.58" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="107.66" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="112.74" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="117.82" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="122.90" r="0.55" fill="#b08d57"/>
+<circle cx="148.62" cy="127.98" r="0.55" fill="#b08d57"/>
+<path d="M16.54 41.62 L148.62 41.62" stroke="#111" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M16.54 127.98 L148.62 127.98" stroke="#d00" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="47.53" y="50.26" width="109.22" height="64.01" rx="2" fill="#333" fill-opacity="0.12" stroke="#333" stroke-width="0.4" stroke-dasharray="2 1"/>
+<rect x="49.81" y="54.57" width="96.01" height="4.57" fill="#222"/>
+<rect x="49.81" y="105.37" width="96.01" height="4.57" fill="#222"/>
+<circle cx="52.10" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="51.50" y="59.46" class="pin" transform="rotate(70 51.50 59.46)">GND</text>
+<circle cx="57.18" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="56.58" y="59.46" class="pin" transform="rotate(70 56.58 59.46)">G23</text>
+<circle cx="62.26" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="61.66" y="59.46" class="pin" transform="rotate(70 61.66 59.46)">G22</text>
+<circle cx="67.34" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="66.74" y="59.46" class="pin" transform="rotate(70 66.74 59.46)">TX</text>
+<circle cx="72.42" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="71.82" y="59.46" class="pin" transform="rotate(70 71.82 59.46)">RX</text>
+<circle cx="77.50" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="76.90" y="59.46" class="pin" transform="rotate(70 76.90 59.46)">G21</text>
+<circle cx="82.58" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="81.98" y="59.46" class="pin" transform="rotate(70 81.98 59.46)">GND</text>
+<circle cx="87.66" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="87.06" y="59.46" class="pin" transform="rotate(70 87.06 59.46)">G19</text>
+<circle cx="92.74" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="92.14" y="59.46" class="pin" transform="rotate(70 92.14 59.46)">G18</text>
+<circle cx="97.82" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="97.22" y="59.46" class="pin" transform="rotate(70 97.22 59.46)">G5</text>
+<circle cx="102.90" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="102.30" y="59.46" class="pin" transform="rotate(70 102.30 59.46)">G17</text>
+<circle cx="107.98" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="107.38" y="59.46" class="pin" transform="rotate(70 107.38 59.46)">G16</text>
+<circle cx="113.06" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="112.46" y="59.46" class="pin" transform="rotate(70 112.46 59.46)">G4</text>
+<circle cx="118.14" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="117.54" y="59.46" class="pin" transform="rotate(70 117.54 59.46)">G0</text>
+<circle cx="123.22" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="122.62" y="59.46" class="pin" transform="rotate(70 122.62 59.46)">G2</text>
+<circle cx="128.30" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="127.70" y="59.46" class="pin" transform="rotate(70 127.70 59.46)">G15</text>
+<circle cx="133.38" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="132.78" y="59.46" class="pin" transform="rotate(70 132.78 59.46)">SD1</text>
+<circle cx="138.46" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="137.86" y="59.46" class="pin" transform="rotate(70 137.86 59.46)">SD0</text>
+<circle cx="143.54" cy="56.86" r="0.9" fill="#ddd"/>
+<text x="142.94" y="59.46" class="pin" transform="rotate(70 142.94 59.46)">CLK</text>
+<circle cx="52.10" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="51.50" y="105.06" class="pin" transform="rotate(-70 51.50 105.06)">3V3</text>
+<circle cx="57.18" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="56.58" y="105.06" class="pin" transform="rotate(-70 56.58 105.06)">EN</text>
+<circle cx="62.26" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="61.66" y="105.06" class="pin" transform="rotate(-70 61.66 105.06)">SVP</text>
+<circle cx="67.34" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="66.74" y="105.06" class="pin" transform="rotate(-70 66.74 105.06)">SVN</text>
+<circle cx="72.42" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="71.82" y="105.06" class="pin" transform="rotate(-70 71.82 105.06)">G34</text>
+<circle cx="77.50" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="76.90" y="105.06" class="pin" transform="rotate(-70 76.90 105.06)">G35</text>
+<circle cx="82.58" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="81.98" y="105.06" class="pin" transform="rotate(-70 81.98 105.06)">G32</text>
+<circle cx="87.66" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="87.06" y="105.06" class="pin" transform="rotate(-70 87.06 105.06)">G33</text>
+<circle cx="92.74" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="92.14" y="105.06" class="pin" transform="rotate(-70 92.14 105.06)">G25</text>
+<circle cx="97.82" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="97.22" y="105.06" class="pin" transform="rotate(-70 97.22 105.06)">G26</text>
+<circle cx="102.90" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="102.30" y="105.06" class="pin" transform="rotate(-70 102.30 105.06)">G27</text>
+<circle cx="107.98" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="107.38" y="105.06" class="pin" transform="rotate(-70 107.38 105.06)">G14</text>
+<circle cx="113.06" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="112.46" y="105.06" class="pin" transform="rotate(-70 112.46 105.06)">G12</text>
+<circle cx="118.14" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="117.54" y="105.06" class="pin" transform="rotate(-70 117.54 105.06)">GND</text>
+<circle cx="123.22" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="122.62" y="105.06" class="pin" transform="rotate(-70 122.62 105.06)">G13</text>
+<circle cx="128.30" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="127.70" y="105.06" class="pin" transform="rotate(-70 127.70 105.06)">SD2</text>
+<circle cx="133.38" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="132.78" y="105.06" class="pin" transform="rotate(-70 132.78 105.06)">SD3</text>
+<circle cx="138.46" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="137.86" y="105.06" class="pin" transform="rotate(-70 137.86 105.06)">CMD</text>
+<circle cx="143.54" cy="107.66" r="0.9" fill="#ddd"/>
+<text x="142.94" y="105.06" class="pin" transform="rotate(-70 142.94 105.06)">5V</text>
+<rect x="152.70" y="78.26" width="6" height="8" fill="#999" stroke="#111" stroke-width="0.3"/>
+<text x="159.70" y="83.26" class="pin">USB-C</text>
+<text x="97.82" y="83.26" class="lbl" text-anchor="middle">ESP32 (enchufada en 2 tiras de pines HEMBRA)</text>
+<rect x="35.36" y="55.36" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="34.26" y="57.76" class="pin" text-anchor="end">VCC</text>
+<rect x="35.36" y="60.44" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="34.26" y="62.84" class="pin" text-anchor="end">GND</text>
+<rect x="35.36" y="65.52" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="34.26" y="67.92" class="pin" text-anchor="end">CS</text>
+<rect x="35.36" y="70.60" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="34.26" y="73.00" class="pin" text-anchor="end">RESET</text>
+<rect x="35.36" y="75.68" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="34.26" y="78.08" class="pin" text-anchor="end">DC</text>
+<rect x="35.36" y="80.76" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="34.26" y="83.16" class="pin" text-anchor="end">MOSI</text>
+<rect x="35.36" y="85.84" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="34.26" y="88.24" class="pin" text-anchor="end">SCK</text>
+<rect x="35.36" y="90.92" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="34.26" y="93.32" class="pin" text-anchor="end">LED</text>
+<rect x="35.36" y="96.00" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="34.26" y="98.40" class="pin" text-anchor="end">MISO</text>
+<text x="34.86" y="52.36" class="lbl" text-anchor="middle">PANTALLA</text>
+<rect x="76.00" y="116.32" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="77.50" y="122.12" class="pin" text-anchor="middle">GND</text>
+<rect x="81.08" y="116.32" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="82.58" y="122.12" class="pin" text-anchor="middle">NAV</text>
+<rect x="86.16" y="116.32" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="87.66" y="122.12" class="pin" text-anchor="middle">SEL</text>
+<rect x="91.24" y="116.32" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="92.74" y="122.12" class="pin" text-anchor="middle">ATR</text>
+<rect x="96.32" y="116.32" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="97.82" y="122.12" class="pin" text-anchor="middle">S</text>
+<rect x="101.40" y="116.32" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="102.90" y="122.12" class="pin" text-anchor="middle">+</text>
+<rect x="106.48" y="116.32" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="107.98" y="122.12" class="pin" text-anchor="middle">-</text>
+<rect x="136.96" y="116.32" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="138.46" y="122.12" class="pin" text-anchor="middle">GND</text>
+<rect x="142.04" y="116.32" width="3" height="3" fill="#f2c94c" stroke="#7a5b00" stroke-width="0.3"/>
+<text x="143.54" y="122.12" class="pin" text-anchor="middle">5V</text>
+<text x="85.12" y="139.60" class="lbl" text-anchor="middle">BOTONES</text>
+<text x="102.90" y="139.60" class="lbl" text-anchor="middle">BUZZER</text>
+<text x="141.00" y="139.60" class="lbl" text-anchor="middle">ENTRA 5 V</text>
+<path d="M52.10 56.86 L52.10 41.62" stroke="#111" stroke-width="0.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M52.10 107.66 L52.10 127.98" stroke="#d00" stroke-width="0.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M118.14 107.66 L118.14 112.74 L72.42 112.74 L72.42 117.82 L77.50 117.82" stroke="#111" stroke-width="0.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M82.58 117.82 L82.58 114.77 L82.58 114.77 L82.58 107.66" stroke="#1f5fbf" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M87.66 117.82 L87.66 116.30 L87.66 116.30 L87.66 107.66" stroke="#2e9d3a" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M92.74 117.82 L92.74 117.31 L92.74 117.31 L92.74 107.66" stroke="#e67e22" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M97.82 117.82 L97.82 107.66" stroke="#555" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M102.90 117.82 L102.90 127.98" stroke="#d00" stroke-width="0.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M107.98 117.82 L107.98 113.76" stroke="#111" stroke-width="0.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M143.54 117.82 L143.54 107.66" stroke="#d00" stroke-width="0.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M138.46 117.82 L138.46 113.76 L118.14 113.76" stroke="#111" stroke-width="0.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M36.86 56.86 L19.08 56.86 L19.08 127.98" stroke="#d00" stroke-width="0.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M36.86 92.42 L21.62 92.42 L21.62 127.98" stroke="#d00" stroke-width="0.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M36.86 61.94 L24.16 61.94 L24.16 41.62" stroke="#111" stroke-width="0.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M36.86 67.02 L40.42 67.02 L40.42 44.67 L97.82 44.67 L97.82 56.86" stroke="#888" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M36.86 72.10 L42.45 72.10 L42.45 54.32 L62.26 54.32 L62.26 56.86" stroke="#e67e22" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M36.86 77.18 L44.48 77.18 L44.48 51.27 L77.50 51.27 L77.50 56.86" stroke="#c9a800" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M36.86 82.26 L46.51 82.26 L46.51 56.35 L57.18 56.35 L57.18 56.86" stroke="#2e9d3a" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M36.86 87.34 L48.54 87.34 L48.54 46.70 L92.74 46.70 L92.74 56.86" stroke="#1f5fbf" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M36.86 97.50 L50.07 97.50 L50.07 48.99 L87.66 48.99 L87.66 56.86" stroke="#8e44ad" stroke-width="0.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="16.54" y="39.12" class="lbl">RIEL GND (alambre desnudo por abajo)</text>
+<text x="16.54" y="132.98" class="lbl" style="fill:#d00">RIEL 3V3 (alambre desnudo por abajo)</text>
+  <g transform="translate(170,34)"><text x="0" y="0.0" class="t2" xml:space="preserve">Cómo se arma, paso a paso</text>
+<text x="0" y="4.6" class="tx" xml:space="preserve"><tspan font-weight="700">1.</tspan> Soldar 2 tiras de 19 pines HEMBRA, separadas</text>
+<text x="0" y="9.2" class="tx" xml:space="preserve">   10 agujeros. La ESP32 se ENCHUFA ahí: no se suelda.</text>
+<text x="0" y="13.8" class="tx" xml:space="preserve">   (Medir: si las filas de mi ESP32 quedan a 9, usar 9.)</text>
+<text x="0" y="20.6" class="tx" xml:space="preserve"><tspan font-weight="700">2.</tspan> Soldar tiras de pines MACHO (amarillo) para cada</text>
+<text x="0" y="25.2" class="tx" xml:space="preserve">   cosa: pantalla (9), botones (4), buzzer (3), energía (2).</text>
+<text x="0" y="29.8" class="tx" xml:space="preserve">   Así todo se conecta con cables dupont hembra.</text>
+<text x="0" y="36.6" class="tx" xml:space="preserve"><tspan font-weight="700">3.</tspan> Hacer los 2 rieles con alambre desnudo por abajo:</text>
+<text x="0" y="41.2" class="tx" xml:space="preserve">   arriba GND (negro), abajo 3V3 (rojo).</text>
+<text x="0" y="48.0" class="tx" xml:space="preserve"><tspan font-weight="700">4.</tspan> Unir con cablecitos por abajo, como las líneas de</text>
+<text x="0" y="52.6" class="tx" xml:space="preserve">   colores. Un cable por vez, tachando en la hoja 3.</text>
+<text x="0" y="59.4" class="tx" xml:space="preserve"><tspan font-weight="700">5.</tspan> Antes de enchufar la ESP32: con el tester, que NO</text>
+<text x="0" y="64.0" class="tx" xml:space="preserve">   haya continuidad entre el riel 3V3 y el riel GND.</text>
+<text x="0" y="70.8" class="tx" xml:space="preserve"><tspan font-weight="700">6.</tspan> Enchufar la ESP32 con el USB-C a la derecha,</text>
+<text x="0" y="75.4" class="tx" xml:space="preserve">   como en el dibujo, y probar con USB antes de</text>
+<text x="0" y="80.0" class="tx" xml:space="preserve">   conectar la batería.</text>
+<text x="0" y="86.8" class="t2" xml:space="preserve">Ojo</text>
+<text x="0" y="91.4" class="tx" xml:space="preserve">• Los nombres de los pines son los de mi placa, vista</text>
+<text x="0" y="96.0" class="tx" xml:space="preserve">  desde arriba con el USB a la derecha. Revisarlos con</text>
+<text x="0" y="100.6" class="tx" xml:space="preserve">  lo que dice impreso antes de soldar.</text>
+<text x="0" y="105.2" class="tx" xml:space="preserve">• "ENTRA 5 V" es donde llega el cable del step-up. Va al</text>
+<text x="0" y="109.8" class="tx" xml:space="preserve">  pin 5V de la ESP32 (es la entrada VIN).</text>
+<text x="0" y="114.4" class="tx" xml:space="preserve">• Botones: cada uno lleva 2 cables, uno a su pin</text>
+<text x="0" y="119.0" class="tx" xml:space="preserve">  (NAV / SEL / ATR) y otro al GND de ese conector.</text>
+<text x="0" y="123.6" class="tx" xml:space="preserve">• Los cables que se cruzan van aislados (no se tocan).</text></g>
+</svg></div>
+</body></html>
