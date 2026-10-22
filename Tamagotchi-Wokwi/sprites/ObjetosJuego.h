@@ -48,3 +48,25 @@ const char* const SPR_BOMBA[OBJ_H] = {
   ".....AAAAAAA....",
   "................",
 };
+// Pelota de futbol para el minijuego Cabezazos (A = borde y manchas, B = blanco, C = sombra)
+const char PALETA_PELOTA[] = "ABC";
+const uint16_t PALETA_PELOTA_COLORES[] = {0x2966, 0xFFFF, 0xBE19};
+const int PALETA_PELOTA_N = 3;
+const char* const SPR_PELOTA[OBJ_H] = {
+  "................",
+  ".....AAAAAA.....",
+  "...AABBBBBBAA...",
+  "..ABBBBBBBBBBA..",
+  "..ABBBBAABBBBA..",
+  ".ABBBBAAAABBBBA.",
+  ".ABBBBAAAABBBBA.",
+  ".AABBBBAABBBBAA.",
+  ".AAABBBBBBBBAAA.",
+  ".ABBBBBBBBBBBCA.",
+  ".ABBBBBBBBBBBCA.",
+  "..ABBBAAAABBCA..",
+  "..ABBBAAAABCCA..",
+  "...AABBBBCCAA...",
+  ".....AAAAAA.....",
+  "................",
+};

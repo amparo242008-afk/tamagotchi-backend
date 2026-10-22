@@ -190,7 +190,7 @@ unsigned long avisoInicio = 0;
 // Todas las pantallas que existen. pantallaActual dice en cual estamos;
 // para cambiar se usa irA(P_...), nunca se cambia pantallaActual a mano.
 enum Pantalla { P_PRINCIPAL, P_MENU, P_COMIDA, P_COCINA, P_DORMIR, P_INFO, P_INFO_RESPUESTA, P_JUGAR, P_JUGAR_FIN, P_AVISO,
-                P_BIENVENIDA, P_BANO };
+                P_BIENVENIDA, P_BANO, P_JUEGOS, P_CABEZAZOS };
 Pantalla pantallaActual = P_BIENVENIDA;
 
 // Los "cursor..." guardan que opcion esta elegida en cada pantalla (0 = la primera)
@@ -1115,37 +1115,44 @@ const int renglonY1[6] = {63, 106, 153, 196, 246, 286};
 #define RENGLON_X 14
 #define RENGLON_W 210
 
-// Repinta un renglon: fondo + texto, y la flechita si es el elegido
-void dibujarRenglonInfo(int i) {
+// Repinta un renglon de una lista (preguntas o juegos): fondo + texto, y la flechita si es el elegido
+void dibujarRenglon(int i, const char* texto, bool elegido) {
     int alto = renglonY1[i] - renglonY0[i] + 1;
     GFXcanvas16* lienzo = empezarZona(FONDO_INFO_COLOR, FONDO_INFO_CONTEO, FONDO_INFO_RUNS, FONDO_INFO_ANCHO,
                                       RENGLON_X, renglonY0[i], RENGLON_W, alto, 1.0);
     if (!lienzo) return;
     uint16_t naranja = tft.color565(235, 152, 102);
     int medio = alto / 2;
-    if (i == cursorInfo) {
+    if (elegido) {
         lienzo->fillTriangle(6, medio - 7, 6, medio + 7, 17, medio, ILI9341_WHITE);
         lienzo->drawTriangle(6, medio - 7, 6, medio + 7, 17, medio, naranja);
     }
-    if (i < cantPreguntas()) {
-        // letra grande si entra en el renglon; si no, chica
-        lienzo->cp437(true);
-        lienzo->setTextSize(strlen(textoPregunta(i)) <= 15 ? 2 : 1);
-        lienzo->setTextColor(naranja);
-        lienzo->setCursor(24, strlen(textoPregunta(i)) <= 15 ? medio - 7 : medio - 3);
-        lienzo->print(textoPregunta(i));
-    }
+    // letra grande si entra en el renglon (hasta 16 letras: con 16 se corre un poquito a la izquierda); si no, chica
+    int letras = strlen(texto);
+    bool grande = letras <= 16;
+    lienzo->cp437(true);
+    lienzo->setTextSize(grande ? 2 : 1);
+    lienzo->setTextColor(naranja);
+    lienzo->setCursor(letras == 16 ? 20 : 24, grande ? medio - 7 : medio - 3);
+    lienzo->print(texto);
     terminarZona(lienzo, RENGLON_X, renglonY0[i]);
 }
 
-void dibujarInfoMenu() {
+void dibujarRenglonInfo(int i) {
+    dibujarRenglon(i, i < cantPreguntas() ? textoPregunta(i) : "", i == cursorInfo);
+}
+
+// Fondo de las listas (el de las preguntas) con el titulo en la plaquita de arriba (x 52..188, y 4..32)
+void dibujarFondoLista(const char* titulo) {
     dibujarFondoRLE(FONDO_INFO_COLOR, FONDO_INFO_CONTEO, FONDO_INFO_RUNS, FONDO_INFO_ANCHO, FONDO_INFO_ALTO, 1.0);
-    // titulo en la plaquita de arriba (x 52..188, y 4..32)
-    const char* titulo = "PREGUNTAS";
     tft.setTextSize(2);
     tft.setTextColor(tft.color565(235, 152, 102));
     tft.setCursor(120 - (strlen(titulo) * 12 - 2) / 2, 11);
     tft.print(titulo);
+}
+
+void dibujarInfoMenu() {
+    dibujarFondoLista("PREGUNTAS");
     infoDibujadaConBajadas = preguntasListas;
     if (cursorInfo >= cantPreguntas()) cursorInfo = 0;
     for (int i = 0; i < cantPreguntas(); i++) dibujarRenglonInfo(i);
@@ -1327,6 +1334,52 @@ unsigned long juegoUltimoFrame = 0;
 unsigned long juegoProximoObjeto = 0;
 int juegoUltimoX = -100;        // donde cayo la ultima cosa (para no tirar otra pegada)
 
+// ---------- Elegir juego ----------
+// Lista con el mismo fondo que las preguntas. Para sumar un juego: agregarlo aca y en el loop.
+#define N_JUEGOS 2
+enum OpcionJuego { JUEGO_CABEZAZOS, JUEGO_CORAZONES };
+const char* const nombresJuegos[N_JUEGOS] = {"Cabezazos", "Atrapa corazones"};
+int cursorJuegos = 0;
+int juegoElegido = JUEGO_CORAZONES;  // el que se esta jugando (la pantalla final cambia segun cual)
+
+// ---------- Minijuego "Cabezazos" ----------
+// La pelota cae; si toca la cabeza de Chaca, rebota para arriba. Pegarle con el centro la
+// manda derecha, con un costado la manda torcida. Si toca el piso: "¡Uy!", la racha vuelve a 0
+// y cae otra. Sin "game over": se juega lo que se quiera y queda el record de la partida.
+// Mismos botones que Atrapar: NAV izquierda, SELECT derecha, BACK terminar.
+#define PELOTA_ESCALA 2
+#define PELOTA_LADO (16 * PELOTA_ESCALA)
+#define CAB_CABEZA_Y (JUEGO_ROB_Y + 8 * JUEGO_ROB_ESCALA)  // arriba del gorrito (fila 8 del sprite)
+#define CAB_CABEZA_X0 (5 * JUEGO_ROB_ESCALA)                // la cabeza ocupa las columnas 5..16
+#define CAB_CABEZA_W (12 * JUEGO_ROB_ESCALA)
+#define CAB_MARGEN 6               // un poquito de ayuda: rozarla con el borde tambien vale
+#define CAB_PISO_Y 300             // si la pelota llega aca abajo, toco el piso
+#define CAB_ALTURA 170             // cuanto sube la pelota despues de cada cabezazo (px)
+#define CAB_GRAVEDAD 0.22          // cuanto acelera al caer (px por cuadro, cada cuadro)
+#define CAB_CADA 5                 // cada 5 cabezazos seguidos se pone un poquito mas dificil...
+#define CAB_AUMENTO 1.08           // ...la gravedad sube un 8% (la pelota va mas rapido)
+#define CAB_GRAVEDAD_MAX 0.35      // tope para que nunca sea imposible
+#define CAB_VX_MAX 3.5             // velocidad de costado cuando le pega con el borde de la cabeza
+#define CAB_ESTIRADO_MS 200        // cuanto dura el dibujo de "se estira" despues de pegarle
+#define CAB_AGACHA_DIST 40         // a esta distancia de la cabeza (px) Chaca se empieza a agachar
+#define CAB_ESPERA_MS 1200         // despues del "¡Uy!", cuanto tarda en caer otra pelota
+#define CAB_HUD_W 228              // contador de cabezazos (izquierda) y record (derecha)
+#define UY_X 70                    // cartelito "¡Uy!" en el medio
+#define UY_Y 130
+#define UY_W 100
+#define UY_H 30
+
+bool pelotaActiva = false;
+float pelotaX, pelotaY, pelotaVX, pelotaVY;
+float gravedadCab = CAB_GRAVEDAD;
+int racha = 0;                  // cabezazos seguidos sin que toque el piso
+int recordCab = 0;              // la mejor racha de esta partida
+bool uyVisible = false;
+unsigned long pelotaVuelve = 0;  // cuando cae la pelota nueva
+unsigned long estiradoHasta = 0;
+const char* const* sprCab = SPR_CABEZAZO[0];  // el dibujo de Chaca en este cuadro
+bool espejoCab = false;
+
 // Indice del fondo del parque: en que run empieza cada fila. Asi se puede
 // repintar un pedacito sin recorrer los ~14.000 runs desde el principio.
 uint16_t parqueFilaRun[FONDO_PARQUE_ALTO];
@@ -1355,8 +1408,21 @@ bool seCruzan(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
     return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
 }
 
+// Texto blanco con sombrita oscura, para que se lea sobre el cielo del parque
+void textoConSombra(GFXcanvas16* lienzo, const String& texto, int x, int y, int tamano) {
+    lienzo->cp437(true);
+    lienzo->setTextSize(tamano);
+    lienzo->setTextColor(PALETA_COLORES[0]);
+    lienzo->setCursor(x + 1, y + 1);
+    lienzo->print(texto);
+    lienzo->setTextColor(ILI9341_WHITE);
+    lienzo->setCursor(x, y);
+    lienzo->print(texto);
+}
+
 // Repinta un rectangulo del juego con TODO lo que haya ahi (fondo, cosas que caen,
 // Chaca y contador), armado en memoria: nada parpadea aunque se encimen.
+// Sirve para los dos juegos (los dos son en el parque): juegoElegido dice cual dibujar.
 void dibujarEscenaJuego(int rx, int ry, int rw, int rh) {
     if (rx < 0) { rw += rx; rx = 0; }
     if (ry < 0) { rh += ry; ry = 0; }
@@ -1368,37 +1434,49 @@ void dibujarEscenaJuego(int rx, int ry, int rw, int rh) {
     fondoRegionEnBuffer(FONDO_PARQUE_COLOR, FONDO_PARQUE_CONTEO, FONDO_PARQUE_RUNS, FONDO_PARQUE_ANCHO,
                         rx, ry, rw, rh, 1.0, lienzo->getBuffer(), parqueFilaRun[ry], parqueFilaPos[ry]);
 
-    for (int i = 0; i < MAX_OBJETOS; i++) {
-        Objeto& o = objetos[i];
-        if (!o.activo || !seCruzan(rx, ry, rw, rh, o.x, (int)o.y, OBJ_LADO, OBJ_LADO)) continue;
-        if (o.corazon) dibujarSpriteEn(*lienzo, o.x - rx, (int)o.y - ry, SPR_CORAZON, PALETA_CORAZON,
-                                       PALETA_CORAZON_COLORES, PALETA_CORAZON_N, OBJ_ESCALA, 1.0, 16, 16);
-        else dibujarSpriteEn(*lienzo, o.x - rx, (int)o.y - ry, SPR_BOMBA, PALETA_BOMBA,
-                             PALETA_BOMBA_COLORES, PALETA_BOMBA_N, OBJ_ESCALA, 1.0, 16, 16);
+    bool cabezazos = juegoElegido == JUEGO_CABEZAZOS;
+    if (cabezazos) {
+        if (pelotaActiva && seCruzan(rx, ry, rw, rh, (int)pelotaX, (int)pelotaY, PELOTA_LADO, PELOTA_LADO))
+            dibujarSpriteEn(*lienzo, (int)pelotaX - rx, (int)pelotaY - ry, SPR_PELOTA, PALETA_PELOTA,
+                            PALETA_PELOTA_COLORES, PALETA_PELOTA_N, PELOTA_ESCALA, 1.0, 16, 16);
+    } else {
+        for (int i = 0; i < MAX_OBJETOS; i++) {
+            Objeto& o = objetos[i];
+            if (!o.activo || !seCruzan(rx, ry, rw, rh, o.x, (int)o.y, OBJ_LADO, OBJ_LADO)) continue;
+            if (o.corazon) dibujarSpriteEn(*lienzo, o.x - rx, (int)o.y - ry, SPR_CORAZON, PALETA_CORAZON,
+                                           PALETA_CORAZON_COLORES, PALETA_CORAZON_N, OBJ_ESCALA, 1.0, 16, 16);
+            else dibujarSpriteEn(*lienzo, o.x - rx, (int)o.y - ry, SPR_BOMBA, PALETA_BOMBA,
+                                 PALETA_BOMBA_COLORES, PALETA_BOMBA_N, OBJ_ESCALA, 1.0, 16, 16);
+        }
     }
 
     if (seCruzan(rx, ry, rw, rh, robX, JUEGO_ROB_Y, JUEGO_ROB_LADO, JUEGO_ROB_LADO)) {
-        dibujarSpriteEn(*lienzo, robX - rx, JUEGO_ROB_Y - ry, SPR_CORRER[robFrame], PALETA_LETRAS, PALETA_COLORES,
-                        PALETA_N, JUEGO_ROB_ESCALA, 1.0, 24, 24, robMiraDerecha);
+        dibujarSpriteEn(*lienzo, robX - rx, JUEGO_ROB_Y - ry, cabezazos ? sprCab : SPR_CORRER[robFrame],
+                        PALETA_LETRAS, PALETA_COLORES, PALETA_N, JUEGO_ROB_ESCALA, 1.0, 24, 24,
+                        cabezazos ? espejoCab : robMiraDerecha);
     }
 
-    if (seCruzan(rx, ry, rw, rh, HUD_X, HUD_Y, HUD_W, HUD_H)) {
+    if (cabezazos) {
+        if (seCruzan(rx, ry, rw, rh, HUD_X, HUD_Y, CAB_HUD_W, HUD_H)) {
+            dibujarSpriteEn(*lienzo, HUD_X - rx, HUD_Y + 4 - ry, SPR_PELOTA, PALETA_PELOTA,
+                            PALETA_PELOTA_COLORES, PALETA_PELOTA_N, 1, 1.0, 16, 16);
+            textoConSombra(lienzo, "x " + String(racha), HUD_X + 22 - rx, HUD_Y + 5 - ry, 2);
+            String record = "R\x82" "cord " + String(recordCab);  // \x82 = e con tilde
+            textoConSombra(lienzo, record, HUD_X + CAB_HUD_W - record.length() * 12 - rx, HUD_Y + 5 - ry, 2);
+        }
+        if (uyVisible && seCruzan(rx, ry, rw, rh, UY_X, UY_Y, UY_W, UY_H))
+            textoConSombra(lienzo, "\xAD" "Uy!", UY_X + 14 - rx, UY_Y + 4 - ry, 3);  // \xAD = ¡
+    } else if (seCruzan(rx, ry, rw, rh, HUD_X, HUD_Y, HUD_W, HUD_H)) {
         dibujarSpriteEn(*lienzo, HUD_X - rx, HUD_Y + 4 - ry, SPR_CORAZON, PALETA_CORAZON,
                         PALETA_CORAZON_COLORES, PALETA_CORAZON_N, 1, 1.0, 16, 16);
-        String texto = "x " + String(corazones);
-        lienzo->setTextSize(2);
-        lienzo->setTextColor(PALETA_COLORES[0]);  // sombrita oscura para que se lea sobre el cielo
-        lienzo->setCursor(HUD_X + 23 - rx, HUD_Y + 6 - ry);
-        lienzo->print(texto);
-        lienzo->setTextColor(ILI9341_WHITE);
-        lienzo->setCursor(HUD_X + 22 - rx, HUD_Y + 5 - ry);
-        lienzo->print(texto);
+        textoConSombra(lienzo, "x " + String(corazones), HUD_X + 22 - rx, HUD_Y + 5 - ry, 2);
     }
     terminarZona(lienzo, rx, ry);
 }
 
 // Al entrar al juego: todo de cero (sin objetos, Chaca en el medio, 0 corazones)
 void dibujarJugar() {
+    juegoElegido = JUEGO_CORAZONES;
     indexarParque();
     randomSeed(micros());
     for (int i = 0; i < MAX_OBJETOS; i++) objetos[i].activo = false;
@@ -1487,6 +1565,134 @@ void pasoJuego() {
     }
 }
 
+// Velocidad para arriba despues de un cabezazo: la justa para que suba CAB_ALTURA
+// (con mas gravedad sale mas rapido, asi siempre llega a la misma altura)
+float velocidadRebote() { return sqrt(2 * gravedadCab * CAB_ALTURA); }
+
+// Cae una pelota nueva desde arriba, en un lugar al azar
+void nuevaPelota() {
+    pelotaActiva = true;
+    pelotaX = random(20, 240 - PELOTA_LADO - 20);
+    pelotaY = 36;
+    pelotaVX = 0;
+    pelotaVY = 0;
+    uyVisible = false;
+    dibujarEscenaJuego(UY_X, UY_Y, UY_W, UY_H);  // borrar el "¡Uy!"
+}
+
+// Al entrar: Chaca en el medio, racha y record en 0, la primera pelota cae enseguida
+void dibujarCabezazos() {
+    juegoElegido = JUEGO_CABEZAZOS;
+    indexarParque();
+    randomSeed(micros());
+    robX = 72;
+    robMiraDerecha = false;
+    racha = 0;
+    recordCab = 0;
+    gravedadCab = CAB_GRAVEDAD;
+    pelotaActiva = false;
+    uyVisible = false;
+    pelotaVuelve = millis() + 800;
+    estiradoHasta = 0;
+    sprCab = SPR_CABEZAZO[0];
+    espejoCab = false;
+    juegoUltimoFrame = millis();
+    empezarMusica();
+    dibujarFondoRLE(FONDO_PARQUE_COLOR, FONDO_PARQUE_CONTEO, FONDO_PARQUE_RUNS, FONDO_PARQUE_ANCHO, FONDO_PARQUE_ALTO, 1.0);
+    dibujarEscenaJuego(robX, JUEGO_ROB_Y, JUEGO_ROB_LADO, JUEGO_ROB_LADO);
+    dibujarEscenaJuego(HUD_X, HUD_Y, CAB_HUD_W, HUD_H);
+}
+
+// Un cuadro de Cabezazos (~30 por segundo): mover a Chaca, mover la pelota, ver si le pego
+void pasoCabezazos() {
+    bool izq = digitalRead(PIN_NAV) == LOW || demoIzq;
+    bool der = digitalRead(PIN_SELECT) == LOW || demoDer;
+    int viejoX = robX;
+    const char* const* viejoSpr = sprCab;
+    bool viejoEspejo = espejoCab;
+    if (izq && !der) { robX -= JUEGO_ROB_VEL; robMiraDerecha = false; }
+    if (der && !izq) { robX += JUEGO_ROB_VEL; robMiraDerecha = true; }
+    robX = constrain(robX, JUEGO_ROB_MIN_X, JUEGO_ROB_MAX_X);
+    int cabeza0 = robX + CAB_CABEZA_X0 - CAB_MARGEN;           // donde la cabeza "agarra" la pelota
+    int cabeza1 = robX + CAB_CABEZA_X0 + CAB_CABEZA_W + CAB_MARGEN;
+
+    // La pelota
+    if (pelotaActiva) {
+        int viejoPX = (int)pelotaX, viejoPY = (int)pelotaY;
+        float abajoAntes = pelotaY + PELOTA_LADO;
+        pelotaVY += gravedadCab;
+        pelotaX += pelotaVX;
+        pelotaY += pelotaVY;
+        // rebota en las paredes de los costados
+        if (pelotaX < 0) { pelotaX = 0; pelotaVX = -pelotaVX; }
+        if (pelotaX > 240 - PELOTA_LADO) { pelotaX = 240 - PELOTA_LADO; pelotaVX = -pelotaVX; }
+        float centro = pelotaX + PELOTA_LADO / 2.0;
+        bool encima = centro > cabeza0 && centro < cabeza1;
+        // ¿cabezazo? (solo bajando, y si en este cuadro cruzo la altura de la cabeza)
+        if (pelotaVY > 0 && encima && abajoAntes <= CAB_CABEZA_Y && pelotaY + PELOTA_LADO >= CAB_CABEZA_Y) {
+            pelotaY = CAB_CABEZA_Y - PELOTA_LADO;
+            pelotaVY = -velocidadRebote();
+            // -1 = le pego con el borde izquierdo, 0 = con el centro, 1 = con el borde derecho
+            float lado = (centro - (cabeza0 + cabeza1) / 2.0) / ((cabeza1 - cabeza0) / 2.0);
+            pelotaVX = lado * CAB_VX_MAX + random(-5, 6) / 10.0;  // y un poquito de azar
+            racha++;
+            if (racha > recordCab) recordCab = racha;
+            if (racha % CAB_CADA == 0) gravedadCab = min(gravedadCab * (float)CAB_AUMENTO, (float)CAB_GRAVEDAD_MAX);
+            estiradoHasta = millis() + CAB_ESTIRADO_MS;
+            sonar(SONIDO_CORAZON);
+            dibujarEscenaJuego(HUD_X, HUD_Y, CAB_HUD_W, HUD_H);
+        } else if (pelotaY + PELOTA_LADO >= CAB_PISO_Y) {
+            // toco el piso: sin reto, se arranca otra racha
+            pelotaActiva = false;
+            racha = 0;
+            gravedadCab = CAB_GRAVEDAD;
+            uyVisible = true;
+            pelotaVuelve = millis() + CAB_ESPERA_MS;
+            sonar(SONIDO_NO);
+            dibujarEscenaJuego(viejoPX, viejoPY, PELOTA_LADO, PELOTA_LADO);  // borrarla
+            dibujarEscenaJuego(HUD_X, HUD_Y, CAB_HUD_W, HUD_H);
+            dibujarEscenaJuego(UY_X, UY_Y, UY_W, UY_H);
+        }
+        if (pelotaActiva) {
+            // repintar desde donde estaba hasta donde esta ahora (asi se borra la vieja)
+            int x0 = min(viejoPX, (int)pelotaX), y0 = min(viejoPY, (int)pelotaY);
+            dibujarEscenaJuego(x0, y0, abs((int)pelotaX - viejoPX) + PELOTA_LADO, abs((int)pelotaY - viejoPY) + PELOTA_LADO);
+        }
+    } else if (millis() >= pelotaVuelve) {
+        nuevaPelota();
+    }
+
+    // Que dibujo de Chaca toca: estirado (le acaba de pegar) > agachado (la pelota viene
+    // justo arriba) > corriendo > parado
+    int distancia = CAB_CABEZA_Y - (int)(pelotaY + PELOTA_LADO);
+    float centro = pelotaX + PELOTA_LADO / 2.0;
+    bool viene = pelotaActiva && pelotaVY > 0 && centro > cabeza0 && centro < cabeza1 && distancia >= 0;
+    espejoCab = false;
+    if (millis() < estiradoHasta) sprCab = SPR_CABEZAZO[3];
+    else if (viene && distancia < CAB_AGACHA_DIST / 3) sprCab = SPR_CABEZAZO[2];
+    else if (viene && distancia < CAB_AGACHA_DIST) sprCab = SPR_CABEZAZO[1];
+    else if (izq != der) {
+        sprCab = SPR_CORRER[(millis() / JUEGO_ANIM_MS) % N_CORRER];
+        espejoCab = robMiraDerecha;  // los dibujos de correr miran a la izquierda
+    } else sprCab = SPR_CABEZAZO[0];
+    if (robX != viejoX || sprCab != viejoSpr || espejoCab != viejoEspejo) {
+        int x0 = min(robX, viejoX);
+        int x1 = max(robX, viejoX) + JUEGO_ROB_LADO;
+        dibujarEscenaJuego(x0, JUEGO_ROB_Y, x1 - x0, JUEGO_ROB_LADO);
+    }
+}
+
+// Los puntos que suman a la felicidad: corazones atrapados, o la mejor racha de cabezazos
+int puntosDelJuego() { return juegoElegido == JUEGO_CABEZAZOS ? recordCab : corazones; }
+
+// Lista para elegir a que jugar (mismo fondo y renglones que las preguntas)
+void dibujarRenglonJuego(int i) { dibujarRenglon(i, nombresJuegos[i], i == cursorJuegos); }
+
+void dibujarJuegos() {
+    dibujarFondoLista("JUEGOS");
+    for (int i = 0; i < N_JUEGOS; i++) dibujarRenglonJuego(i);
+}
+
 // Pantalla final: siempre en positivo, junte lo que junte
 void dibujarJugarFin() {
     dibujarFondoRLE(FONDO_PARQUE_COLOR, FONDO_PARQUE_CONTEO, FONDO_PARQUE_RUNS, FONDO_PARQUE_ANCHO, FONDO_PARQUE_ALTO, 0.5);
@@ -1502,10 +1708,18 @@ void dibujarJugarFin() {
     const char* titulo = "\xAD" "Bien jugado!";  // \xAD = "¡" en la fuente de la pantalla
     tft.setCursor(120 - (strlen(titulo) * 12 - 2) / 2, 66);
     tft.print(titulo);
-    dibujarSpriteEn(tft, 66, 98, SPR_CORAZON, PALETA_CORAZON, PALETA_CORAZON_COLORES, PALETA_CORAZON_N, 3, 1.0, 16, 16);
+    if (juegoElegido == JUEGO_CABEZAZOS) {
+        dibujarSpriteEn(tft, 66, 94, SPR_PELOTA, PALETA_PELOTA, PALETA_PELOTA_COLORES, PALETA_PELOTA_N, 3, 1.0, 16, 16);
+        tft.setTextSize(1);
+        const char* subtitulo = "mejor racha";
+        tft.setCursor(120 - (strlen(subtitulo) * 6 - 1) / 2, 145);
+        tft.print(subtitulo);
+    } else {
+        dibujarSpriteEn(tft, 66, 98, SPR_CORAZON, PALETA_CORAZON, PALETA_CORAZON_COLORES, PALETA_CORAZON_N, 3, 1.0, 16, 16);
+    }
     tft.setTextSize(4);
-    tft.setCursor(124, 108);
-    tft.print("x" + String(corazones));
+    tft.setCursor(124, juegoElegido == JUEGO_CABEZAZOS ? 104 : 108);
+    tft.print("x" + String(puntosDelJuego()));
     dibujarSprite(60, 175, SPR_FESTEJO[0]);
     sonar(SONIDO_FESTEJO);
 }
@@ -1841,8 +2055,13 @@ void irA(int nueva) {
         case P_AVISO: dibujarAviso(); break;
         case P_BIENVENIDA: dibujarBienvenida(); break;
         case P_BANO: dibujarBano(); break;
+        case P_JUEGOS: dibujarJuegos(); break;
+        case P_CABEZAZOS: dibujarCabezazos(); break;
     }
 }
+
+// En los juegos NAV y SELECT se mantienen apretados para correr (no hacen "clic" ni cortan la demo)
+bool enJuego() { return pantallaActual == P_JUGAR || pantallaActual == P_CABEZAZOS; }
 
 // ---------- Modo demo (para el video y la presentacion) ----------
 // Chaca recorre todo sola, "apretando" los botones por su cuenta, siguiendo un guion que se repite.
@@ -1854,7 +2073,7 @@ void irA(int nueva) {
 enum PasoDemo {
     D_NAV, D_SEL, D_BACK,             // "aprieta" un boton
     D_DER, D_IZQ, D_QUIETO,           // en el juego: corre a la derecha, a la izquierda, se para
-    D_MENU_A, D_COMIDA_A, D_INFO_A, D_AVISO_A,  // mueve la flechita hasta la opcion "valor"
+    D_MENU_A, D_COMIDA_A, D_INFO_A, D_AVISO_A, D_JUEGO_A,  // mueve la flechita hasta la opcion "valor"
     D_AVISO_COMIDA, D_AVISO_ACTIVIDAD,          // Chaca pregunta (sin esperar el horario)
     D_REINICIAR                       // vuelve a la bienvenida y empieza otra vez
 };
@@ -1870,6 +2089,8 @@ const Demo GUION_DEMO[] = {
     {D_SEL, 0, 1000},                         // se bana
     {D_SEL, 0, 6500},                         // menu
     {D_MENU_A, MENU_JUGAR, 1500},
+    {D_SEL, 0, 1000},                         // lista de juegos
+    {D_JUEGO_A, JUEGO_CORAZONES, 1500},
     {D_SEL, 0, 1000},                         // juego: atrapar corazones
     {D_DER, 0, 1500}, {D_IZQ, 0, 1400}, {D_DER, 0, 1600}, {D_QUIETO, 0, 900}, {D_IZQ, 0, 1200},
     {D_DER, 0, 1500}, {D_QUIETO, 0, 1300}, {D_IZQ, 0, 1000}, {D_QUIETO, 0, 1500},
@@ -1926,7 +2147,8 @@ void pasoDemo(bool& nav, bool& sel, bool& back) {
     demoDesde = millis();
     // pasos que mueven la flechita: un "Nav" por vez hasta llegar a la opcion
     int* cursor = d.paso == D_MENU_A ? &cursorMenu : d.paso == D_COMIDA_A ? &cursorComida
-                : d.paso == D_INFO_A ? &cursorInfo : d.paso == D_AVISO_A ? &cursorAviso : nullptr;
+                : d.paso == D_INFO_A ? &cursorInfo : d.paso == D_AVISO_A ? &cursorAviso
+                : d.paso == D_JUEGO_A ? &cursorJuegos : nullptr;
     if (cursor && *cursor != d.valor) {
         nav = true;
         demoMoviendo = true;
@@ -2011,11 +2233,11 @@ void loop() {
     bool back = sePresiono(PIN_BACK, backAnterior);
     if (modoDemo) {
         // en el juego Nav y Select se mantienen apretados para correr: ahi no cortan la demo
-        bool deVerdad = pantallaActual == P_JUGAR ? back : (nav || sel || back);
+        bool deVerdad = enJuego() ? back : (nav || sel || back);
         if (deVerdad && !MODO_DEMO_SIEMPRE) ESP.restart();  // un boton de verdad corta la demo
         pasoDemo(nav, sel, back);
     }
-    if ((nav || sel || back) && pantallaActual != P_JUGAR) sonar(SONIDO_BOTON);  // "clic" suave (en el juego no)
+    if ((nav || sel || back) && !enJuego()) sonar(SONIDO_BOTON);  // "clic" suave (en el juego no)
 
     // Llegaron stats nuevos del servidor: actualizar lo que se ve
     if (statsNuevos) {
@@ -2064,7 +2286,7 @@ void loop() {
                         irA(P_DORMIR);
                     }
                 }
-                else if (cursorMenu == MENU_JUGAR) irA(P_JUGAR);
+                else if (cursorMenu == MENU_JUGAR) irA(P_JUEGOS);
                 else irA(P_INFO);
             }
             break;
@@ -2120,6 +2342,26 @@ void loop() {
             if (back) irA(P_JUGAR_FIN);
             break;
 
+        case P_JUEGOS:
+            if (nav) {
+                int anterior = cursorJuegos;
+                cursorJuegos = (cursorJuegos + 1) % N_JUEGOS;
+                dibujarRenglonJuego(anterior);
+                dibujarRenglonJuego(cursorJuegos);
+            }
+            if (back) irA(P_MENU);
+            if (sel) irA(cursorJuegos == JUEGO_CABEZAZOS ? P_CABEZAZOS : P_JUGAR);
+            break;
+
+        case P_CABEZAZOS:
+            seguirMusica();
+            if (millis() - juegoUltimoFrame >= JUEGO_FRAME_MS) {
+                juegoUltimoFrame = millis();
+                pasoCabezazos();
+            }
+            if (back) irA(P_JUGAR_FIN);
+            break;
+
         case P_AVISO: {
             int frame = frameHablar();
             if (frame != frameHablarDibujado) {
@@ -2166,7 +2408,7 @@ void loop() {
         case P_JUGAR_FIN:
             // cualquier boton: los corazones van a la dopamina y Chaca vuelve festejando
             if (sel || nav || back) {
-                enviarAccion("jugar", corazones);
+                enviarAccion("jugar", puntosDelJuego());
                 empezarAnimPrincipal(ANIM_FESTEJO, 1500);
                 irA(P_PRINCIPAL);
             }
@@ -2212,5 +2454,5 @@ void loop() {
         }
     }
 
-    delay(pantallaActual == P_JUGAR ? 2 : 50);  // en el juego, el ritmo lo marca JUEGO_FRAME_MS
+    delay(enJuego() ? 2 : 50);  // en el juego, el ritmo lo marca JUEGO_FRAME_MS
 }

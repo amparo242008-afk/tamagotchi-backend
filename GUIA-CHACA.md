@@ -106,7 +106,7 @@ Siempre está en **una sola pantalla** (`pantallaActual`): Bienvenida, Principal
 Bienvenida ──Entrar──► Principal ──Select──► Menú ──► Comida ──► Cocina ──► Principal (festeja)
                            ▲                   ├──► Baño ──────────────────► Principal
                            │                   ├──► Dormir ──botón──► Principal (saluda)
-                           │                   ├──► Juego ──Atrás──► Fin del juego ──► Principal
+                           │                   ├──► Juegos ──► Cabezazos / Atrapa corazones ──Atrás──► Fin del juego ──► Principal
                            │                   └──► Info ──► Respuesta
                            └──── Aviso de la agenda (aparece solo en su horario)
 ```
@@ -121,6 +121,12 @@ Se comunican con una **cola** (`colaAcciones`): cuando Chaca come, el `loop()` d
 
 ### Los botones: `sePresiono()`
 Cuenta **solo el momento en que se aprieta** (el "flanco"), no todo el tiempo que está apretado. Si no, una sola apretada contaría como 20, una por cada vuelta del `loop()`. En el **juego** es al revés: se lee si está apretado, porque mientras mantenés, Chaca sigue corriendo.
+
+### Los dos juegos
+Desde **Menú → Jugar** se abre la lista **JUEGOS** (mismo fondo que las preguntas). En los dos, NAV = izquierda, SELECT = derecha, ATRÁS = terminar, y **nunca se pierde**: la idea es jugar tranquilo, sin sentir que fallaste.
+- **Atrapa corazones**: caen corazones (+1) y bombas (−1, nunca baja de 0).
+- **Cabezazos**: la pelota cae con "gravedad" (cada cuadro cae un poco más rápido). Si toca la cabeza de Chaca, rebota para arriba: pegarle con el centro la manda derecha, con un costado la manda torcida. Cuando viene justo arriba, Chaca se agacha, y al pegarle se estira. Si toca el piso sale "¡Uy!", la racha vuelve a 0 y cae otra. Cada 5 cabezazos seguidos va un poquito más rápido. Lo que se ajusta está arriba de todo de esa parte del código: `CAB_ALTURA` (qué tan alto sube), `CAB_GRAVEDAD` (qué tan rápido cae), `CAB_AUMENTO` (cuánto más difícil se pone).
+- Al terminar, los puntos (corazones, o la mejor racha de cabezazos) suben la felicidad.
 
 ### Los stats: hambre, sueño y dopamina
 - Van de **0 a 100**.
