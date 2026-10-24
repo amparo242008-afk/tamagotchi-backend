@@ -2,21 +2,21 @@
   {
     "clave": "nombre",
     "pregunta": "Nombre",
-    "respuesta": "Me llamo Chaca y soy tu Tamagotchi."
+    "respuesta": "Me llamo Chaca / y soy tu Tamagotchi."
   },
   {
     "clave": "color_favorito",
     "pregunta": "Color favorito",
-    "respuesta": "El celeste, como las paredes de mi living."
+    "respuesta": "El celeste, / como las paredes de mi living."
   },
   {
     "clave": "comida_favorita",
     "pregunta": "Comida favorita",
-    "respuesta": "¡La hamburguesa! Aunque la torta también me encanta."
+    "respuesta": "¡La hamburguesa! / Aunque la torta también me encanta."
   },
   {
     "clave": "juego_favorito",
     "pregunta": "Juego favorito",
-    "respuesta": "¡Atrapar corazones, y más si jugás conmigo!"
+    "respuesta": "¡Atrapa corazones, / y más si jugás conmigo!"
   }
 ]

@@ -227,10 +227,10 @@ int cursorInfo = 0;
 const char* preguntasFijas[N_PREGUNTAS_FIJAS] = {"Nombre", "Color favorito", "Comida favorita", "Juego favorito"};
 const char* clavesFijas[N_PREGUNTAS_FIJAS] = {"nombre", "color_favorito", "comida_favorita", "juego_favorito"};
 const char* respuestasFijas[N_PREGUNTAS_FIJAS] = {
-    "Me llamo Chaca y soy tu Tamagotchi.",
-    "El celeste, como las paredes de mi living.",
-    "¡La hamburguesa! Aunque la torta también me encanta.",
-    "¡Atrapar corazones, y más si jugás conmigo!"};
+    "Me llamo Chaca / y soy tu Tamagotchi.",
+    "El celeste, / como las paredes de mi living.",
+    "¡La hamburguesa! / Aunque la torta también me encanta.",
+    "¡Atrapa corazones, / y más si jugás conmigo!"};
 char preguntasBajadas[MAX_PREGUNTAS][40];
 char clavesBajadas[MAX_PREGUNTAS][40];
 char respuestasBajadas[MAX_PREGUNTAS][128];  // con tildes tal cual (las pasa dibujarBurbuja)
@@ -318,6 +318,28 @@ const Nota MUSICA_JUEGO[] = {
     {DO5, MUS_CORCHEA}, {SOL4, MUS_CORCHEA}, {DO5, MUS_CORCHEA}, {MI5, MUS_CORCHEA}, {DO5, MUS_NEGRA}, {0, MUS_NEGRA},
     {0, 0}};
 
+// Musica de Cabezazos: otra melodia propia, en Sol mayor y un poco mas rapida, con saltos
+// grandes (de una nota a la misma una octava arriba) que suenan como la pelota rebotando.
+#define LA4 440
+#define FAS4 370   // FA# (fa sostenido)
+#define MI4 330
+#define FAS5 740
+#define SI5 988
+#define RE6 1175
+#define CAB_CORCHEA 100
+#define CAB_NEGRA (CAB_CORCHEA * 2)
+#define CAB_BLANCA (CAB_CORCHEA * 4)
+const Nota MUSICA_CABEZAZOS[] = {
+    {SOL4, CAB_CORCHEA}, {SOL5, CAB_CORCHEA}, {RE5, CAB_CORCHEA}, {SI4, CAB_CORCHEA}, {SOL5, CAB_NEGRA}, {FAS5, CAB_CORCHEA}, {MI5, CAB_CORCHEA},
+    {RE5, CAB_CORCHEA}, {SI4, CAB_CORCHEA}, {RE5, CAB_CORCHEA}, {SOL5, CAB_CORCHEA}, {LA5, CAB_BLANCA},
+    {LA4, CAB_CORCHEA}, {LA5, CAB_CORCHEA}, {MI5, CAB_CORCHEA}, {DO5, CAB_CORCHEA}, {LA5, CAB_NEGRA}, {SOL5, CAB_CORCHEA}, {FAS5, CAB_CORCHEA},
+    {MI5, CAB_CORCHEA}, {DO5, CAB_CORCHEA}, {MI5, CAB_CORCHEA}, {FAS5, CAB_CORCHEA}, {RE5, CAB_NEGRA}, {FAS5, CAB_NEGRA},
+    {SI5, CAB_CORCHEA}, {LA5, CAB_CORCHEA}, {SOL5, CAB_CORCHEA}, {LA5, CAB_CORCHEA}, {SI5, CAB_NEGRA}, {RE6, CAB_NEGRA},
+    {SI5, CAB_CORCHEA}, {LA5, CAB_CORCHEA}, {SOL5, CAB_CORCHEA}, {FAS5, CAB_CORCHEA}, {MI5, CAB_NEGRA}, {LA5, CAB_NEGRA},
+    {SOL5, CAB_CORCHEA}, {FAS5, CAB_CORCHEA}, {MI5, CAB_CORCHEA}, {RE5, CAB_CORCHEA}, {SI4, CAB_NEGRA}, {RE5, CAB_NEGRA},
+    {LA4, CAB_CORCHEA}, {SI4, CAB_CORCHEA}, {DO5, CAB_CORCHEA}, {FAS4, CAB_CORCHEA}, {SOL4, CAB_NEGRA}, {0, CAB_NEGRA},
+    {0, 0}};
+
 // ---------- Reloj (hora real por internet, NTP) ----------
 // El ESP32 no tiene pila de reloj: al prender no sabe que hora es.
 // La tarea de red le pregunta la hora a un servidor de internet (NTP) y desde ahi la lleva sola.
@@ -360,8 +382,10 @@ void sonar(const Nota* melodia) {
 // quedaria esperando a que termine la cancion). Se manda nota por nota desde el loop:
 // cuando termina una, va la siguiente. Si suena un efecto, la musica hace una pausa cortita.
 int musicaNota = 0;
+const Nota* musicaActual = MUSICA_JUEGO;  // cada juego tiene su cancion
 
-void empezarMusica() {
+void empezarMusica(const Nota* cancion) {
+    musicaActual = cancion;
     musicaNota = 0;
     sonidoHasta = millis();
 }
@@ -369,12 +393,12 @@ void empezarMusica() {
 void seguirMusica() {
     if (!SONIDO_ACTIVADO || enSilencio()) return;
     if (millis() < sonidoHasta) return;  // todavia suena la nota anterior o un efecto
-    const Nota& n = MUSICA_JUEGO[musicaNota];
+    const Nota& n = musicaActual[musicaNota];
     // la nota suena un poquito menos de lo que dura, asi dos notas iguales seguidas se escuchan separadas
     if (n.freq > 0) tone(PIN_BUZZER, n.freq, n.ms * 85 / 100);
     sonidoHasta = millis() + n.ms;
     musicaNota++;
-    if (MUSICA_JUEGO[musicaNota].ms == 0) musicaNota = 0;  // termino: vuelve a empezar
+    if (musicaActual[musicaNota].ms == 0) musicaNota = 0;  // termino: vuelve a empezar
 }
 
 // =====================================================================
@@ -1301,13 +1325,15 @@ void dibujarRenglon(int i, const char* texto, bool elegido) {
         lienzo->fillTriangle(6, medio - 7, 6, medio + 7, 17, medio, ILI9341_WHITE);
         lienzo->drawTriangle(6, medio - 7, 6, medio + 7, 17, medio, naranja);
     }
-    // letra grande si entra en el renglon (hasta 16 letras: con 16 se corre un poquito a la izquierda); si no, chica
+    // letra grande si entra en el renglon (hasta 16 letras: con 16 se corre un poquito a la izquierda); si no, chica.
+    // Sin "wrap": si una letra no entra, la libreria la pasa a la linea de abajo y desaparece.
     int letras = strlen(texto);
     bool grande = letras <= 16;
     lienzo->cp437(true);
+    lienzo->setTextWrap(false);
     lienzo->setTextSize(grande ? 2 : 1);
     lienzo->setTextColor(naranja);
-    lienzo->setCursor(letras == 16 ? 20 : 24, grande ? medio - 7 : medio - 3);
+    lienzo->setCursor(letras == 16 ? 18 : 24, grande ? medio - 7 : medio - 3);
     lienzo->print(texto);
     terminarZona(lienzo, RENGLON_X, renglonY0[i]);
 }
@@ -1346,7 +1372,7 @@ void dibujarInfoMenu() {
 #define HABLAR_ZONA_Y 190
 #define HABLAR_ZONA_W 120
 #define HABLAR_ZONA_H 100
-#define MAX_LINEAS 8
+#define MAX_LINEAS 15
 
 // La fuente de la pantalla no entiende UTF-8 (lo que manda el servidor).
 // Se pasan las letras con tilde y la ñ a la tabla "CP437", que si las tiene.
@@ -1389,7 +1415,9 @@ int partirEnLineas(const String& texto, int maxLetras, String* lineas, int maxLi
         if (fin < 0) fin = texto.length();
         String palabra = texto.substring(i, fin);
         i = fin + 1;
-        while ((int)palabra.length() > maxLetras) {  // palabra larguisima: se corta
+        // palabra larguisima: se corta. Se le perdona 1 letra de mas (ej. "hamburguesa!"),
+        // que igual entra en la parte mas ancha de la burbuja
+        while ((int)palabra.length() > maxLetras + 1) {
             if (actual.length() > 0 && n < maxLineas) { lineas[n++] = actual; actual = ""; }
             if (n < maxLineas) lineas[n++] = palabra.substring(0, maxLetras);
             palabra = palabra.substring(maxLetras);
@@ -1406,30 +1434,99 @@ int partirEnLineas(const String& texto, int maxLetras, String* lineas, int maxLi
     return n;
 }
 
-// Dibuja la burbuja y el texto adentro, centrado. Prueba primero con letra
-// grande (tam 2); si no entra, usa la chica (tam 1). Cada letra mide 6x8 * tam.
+// ---------- Letra mediana (para la burbuja) ----------
+// La libreria solo agranda la letra x1, x2, x3... y la x2 quedaba muy grande para la burbuja.
+// Esta es 1,5 veces la chica: se toma el dibujo de cada letra (5x8 puntitos, de la misma
+// libreria) y cada puntito se pinta de 1 o 2 pixeles, alternando. Mide 7x12 por letra.
+#include <glcdfont.c>   // "font": el dibujo de las letras de la pantalla (5 columnas por letra)
+#define MED_ANCHO 9     // lo que avanza cada letra (7 de la letra + 2 de espacio)
+#define MED_ALTO 12
+
+int medPos(int i) { return i * 3 / 2; }  // donde empieza el puntito i: 0, 1, 3, 4, 6, 7, 9...
+
+void letraMediana(int x, int y, uint8_t c, uint16_t color) {
+    for (int col = 0; col < 5; col++) {
+        uint8_t bits = pgm_read_byte(&font[c * 5 + col]);  // cada bit = un puntito de esa columna
+        for (int fila = 0; fila < 8; fila++) {
+            if (bits & (1 << fila)) {
+                tft.fillRect(x + medPos(col), y + medPos(fila),
+                             medPos(col + 1) - medPos(col), medPos(fila + 1) - medPos(fila), color);
+            }
+        }
+    }
+}
+
+void textoMediano(int x, int y, const String& s, uint16_t color) {
+    for (unsigned int i = 0; i < s.length(); i++) letraMediana(x + i * MED_ANCHO, y, (uint8_t)s[i], color);
+}
+
+// ---------- Burbuja ----------
+// El texto se muestra de a partes que van pasando solas (seguirBurbuja, desde el loop).
+// Una "/" en el texto (ej. "Me llamo Chaca / y soy tu Tamagotchi.") dice donde termina
+// una parte; y si un pedazo no entra en 4 renglones, sigue en otra parte.
+// Una flechita abajo avisa que todavia falta.
+#define LINEAS_PARTE 4
+#define BURBUJA_MS_PARTE 2000   // cuanto se ve cada parte
+String burbujaTexto = "";
+int burbujaParte = 0, burbujaPartes = 1;
+unsigned long burbujaCambio = 0;
+
+// Dibuja la burbuja y la parte que toca del texto, centrada
 void dibujarBurbuja(const String& texto) {
+    if (texto != burbujaTexto) { burbujaTexto = texto; burbujaParte = 0; }
+    burbujaCambio = millis();
     dibujarSpriteGenerico(BURBUJA_X, BURBUJA_Y, spr_burbujatexto, PALETA_BURBUJATEXTO,
                           PALETA_BURBUJATEXTO_COLORES, PALETA_BURBUJATEXTO_N, BURBUJA_ESCALA);
+    // Arma los renglones de todas las partes. inicio[p] = primer renglon de la parte p
     String t = aCp437(texto);
     String lineas[MAX_LINEAS];
-    int n = 0;
-    int tam = 2;
-    // letra grande si entra; si no, letra chica
-    for (tam = 2; tam >= 1; tam--) {
-        n = partirEnLineas(t, TEXTO_W / (6 * tam), lineas, MAX_LINEAS);
-        if (n * (8 * tam + 2) <= TEXTO_H || tam == 1) break;
+    int inicio[MAX_LINEAS + 1];
+    int n = 0, partes = 0, i = 0;
+    while (i < (int)t.length() && n < MAX_LINEAS) {
+        int barra = t.indexOf('/', i);
+        if (barra < 0) barra = t.length();
+        String pedazo = t.substring(i, barra);
+        pedazo.trim();
+        String renglones[MAX_LINEAS];
+        int m = partirEnLineas(pedazo, TEXTO_W / MED_ANCHO, renglones, MAX_LINEAS);
+        for (int k = 0; k < m && n < MAX_LINEAS; k++) {
+            if (k % LINEAS_PARTE == 0) inicio[partes++] = n;
+            lineas[n++] = renglones[k];
+        }
+        i = barra + 1;
     }
-    int alto = 8 * tam + 2;
-    int y = TEXTO_Y + (TEXTO_H - n * alto) / 2;
-    tft.cp437(true);
-    tft.setTextSize(tam);
-    tft.setTextColor(PALETA_COLORES[0]);  // el gris oscuro del contorno de Chaca
-    for (int i = 0; i < n; i++) {
-        int ancho = lineas[i].length() * 6 * tam;
-        tft.setCursor(TEXTO_X + (TEXTO_W - ancho) / 2, y + i * alto);
-        tft.print(lineas[i]);
+    if (partes == 0) inicio[partes++] = 0;  // texto vacio
+    inicio[partes] = n;
+    burbujaPartes = partes;
+    if (burbujaParte >= partes) burbujaParte = 0;
+
+    int desde = inicio[burbujaParte];
+    int cuantas = inicio[burbujaParte + 1] - desde;
+    int alto = MED_ALTO + 3;  // con un poquito de espacio entre renglones
+    // +2: arriba la burbuja es mas angosta, asi un renglon largo no pisa el borde
+    int y = TEXTO_Y + (TEXTO_H - cuantas * alto) / 2 + 2;
+    uint16_t color = PALETA_COLORES[0];  // el gris oscuro del contorno de Chaca
+    for (int r = 0; r < cuantas; r++) {
+        int ancho = lineas[desde + r].length() * MED_ANCHO - 2;
+        textoMediano(TEXTO_X + (TEXTO_W - ancho) / 2, y + r * alto, lineas[desde + r], color);
     }
+    if (burbujaParte < burbujaPartes - 1) {  // falta otra parte: flechita para abajo
+        tft.cp437(true);
+        tft.setTextSize(1);
+        tft.setTextColor(color);
+        tft.setCursor(TEXTO_X + TEXTO_W / 2 - 3, TEXTO_Y + TEXTO_H - 4);
+        tft.print((char)0x1F);  // en CP437, 0x1F es un triangulito para abajo
+    }
+}
+
+// Desde el loop: si el texto tiene varias partes, pasa a la siguiente cada BURBUJA_MS_PARTE
+// (despues de la ultima vuelve a la primera) y Chaca vuelve a mover la boca
+void seguirBurbuja() {
+    if (burbujaPartes <= 1 || millis() - burbujaCambio < BURBUJA_MS_PARTE) return;
+    burbujaParte = (burbujaParte + 1) % burbujaPartes;
+    dibujarBurbuja(burbujaTexto);
+    hablarInicio = millis();
+    hablarDuracion = 1500;
 }
 
 // Chaca hablando: abre y cierra la boca mientras dura la respuesta, despues sonrie
@@ -1582,14 +1679,19 @@ bool seCruzan(int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
     return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
 }
 
-// Texto blanco con sombrita oscura, para que se lea sobre el cielo del parque
+// Texto naranja con borde oscuro alrededor: se lee sobre el cielo y sobre las nubes blancas
+// (el borde se hace escribiendo el texto oscuro corrido 1 pixel para cada lado)
 void textoConSombra(GFXcanvas16* lienzo, const String& texto, int x, int y, int tamano) {
     lienzo->cp437(true);
+    lienzo->setTextWrap(false);
     lienzo->setTextSize(tamano);
     lienzo->setTextColor(PALETA_COLORES[0]);
-    lienzo->setCursor(x + 1, y + 1);
-    lienzo->print(texto);
-    lienzo->setTextColor(ILI9341_WHITE);
+    const int dx[4] = {-1, 1, 0, 0}, dy[4] = {0, 0, -1, 1};
+    for (int i = 0; i < 4; i++) {
+        lienzo->setCursor(x + dx[i], y + dy[i]);
+        lienzo->print(texto);
+    }
+    lienzo->setTextColor(tft.color565(235, 152, 102));  // el naranja de las listas
     lienzo->setCursor(x, y);
     lienzo->print(texto);
 }
@@ -1660,7 +1762,7 @@ void dibujarJugar() {
     corazones = 0;
     juegoUltimoFrame = millis();
     juegoProximoObjeto = millis() + 800;
-    empezarMusica();
+    empezarMusica(MUSICA_JUEGO);
     dibujarFondoRLE(FONDO_PARQUE_COLOR, FONDO_PARQUE_CONTEO, FONDO_PARQUE_RUNS, FONDO_PARQUE_ANCHO, FONDO_PARQUE_ALTO, 1.0);
     dibujarEscenaJuego(robX, JUEGO_ROB_Y, JUEGO_ROB_LADO, JUEGO_ROB_LADO);
     dibujarEscenaJuego(HUD_X, HUD_Y, HUD_W, HUD_H);
@@ -1771,7 +1873,7 @@ void dibujarCabezazos() {
     sprCab = SPR_CABEZAZO[0];
     espejoCab = false;
     juegoUltimoFrame = millis();
-    empezarMusica();
+    empezarMusica(MUSICA_CABEZAZOS);
     dibujarFondoRLE(FONDO_PARQUE_COLOR, FONDO_PARQUE_CONTEO, FONDO_PARQUE_RUNS, FONDO_PARQUE_ANCHO, FONDO_PARQUE_ALTO, 1.0);
     dibujarEscenaJuego(robX, JUEGO_ROB_Y, JUEGO_ROB_LADO, JUEGO_ROB_LADO);
     dibujarEscenaJuego(HUD_X, HUD_Y, CAB_HUD_W, HUD_H);
@@ -2540,6 +2642,7 @@ void loop() {
             break;
 
         case P_AVISO: {
+            seguirBurbuja();
             int frame = frameHablar();
             if (frame != frameHablarDibujado) {
                 frameHablarDibujado = frame;
@@ -2620,6 +2723,7 @@ void loop() {
             break;
 
         case P_INFO_RESPUESTA: {
+            seguirBurbuja();
             int frame = frameHablar();
             if (frame != frameHablarDibujado) {
                 if (frame == 1) sonar(SONIDO_HABLAR);  // "bip" cada vez que abre la boca
