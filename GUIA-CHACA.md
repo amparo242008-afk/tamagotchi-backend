@@ -345,6 +345,7 @@ Abajo en VS Code, el **enchufe** de PlatformIO (*Serial Monitor*). Muestra cosas
 ### Cambiar una respuesta de Info
 1. En `preguntas.json` (el servidor), cambiá la respuesta y subí a GitHub.
 2. En `sketch.ino`, buscá `respuestasFijas` y cambiala también (es la copia para cuando no hay internet). Subila a la placa.
+- Una **"/"** en la respuesta marca dónde corta la burbuja: ej. `"Me llamo Chaca / y soy tu Tamagotchi."` muestra primero "Me llamo Chaca" y a los 2 segundos "y soy tu Tamagotchi.".
 
 ### Cambiar una pregunta de la agenda o una micro-tarea
 En `rutina.json`, cambiá el texto (`"pregunta"` o `"micro"`) y subí a GitHub. Chaca lo toma en menos de una hora, o al reiniciarla.
