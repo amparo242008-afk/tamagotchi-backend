@@ -139,7 +139,10 @@ La ESP32 no tiene reloj con pila: al prender no sabe qué hora es. Se la pregunt
 
 ### El WiFi
 - El nombre y la contraseña de mi WiFi van en **`secretos.h`**, que **no se sube a GitHub** (está en `.gitignore`).
-- Si Chaca ve la red **"Wokwi-GUEST"** (la del simulador), usa esa. Si no, usa la de `secretos.h`. Así el mismo código anda en Wokwi y en la placa real.
+- Si Chaca ve la red **"Wokwi-GUEST"** (la del simulador), usa esa. Si no, busca entre las **redes guardadas desde el celular** (ver abajo), y si no ve ninguna usa la de `secretos.h`. Así el mismo código anda en Wokwi y en la placa real.
+- **Configurar el WiFi desde el celular, sin tocar código.** Al prender Chaca con **BACK** apretado, Chaca arma su propia red WiFi llamada **"Chaca"**, solo por un ratito. Te conectás desde el celu y se abre sola una página (como el WiFi de un bar: se llama **portal cautivo**). Elegís la red, ponés la contraseña y Guardar. Chaca la guarda, apaga su red y se reinicia conectándose a la red elegida.
+- **Recuerda hasta 5 redes** (casa, escuela...). Quedan en la memoria interna del ESP32 (`Preferences`), que no se borra al apagar. Cada vez que prende, mira qué redes hay cerca y usa la que conoce.
+- Por dentro: el ESP32 puede ser **router** además de conectarse a una red. Tiene un mini **servidor web** (`WebServer`) para la página y un **"DNS trampa"** (`DNSServer`) que contesta cualquier dirección con la IP de Chaca (192.168.4.1): por eso el celular abre la página solo.
 - **Solo redes de 2.4 GHz.** La ESP32 no se conecta a redes de 5 GHz.
 
 ---
@@ -332,7 +335,12 @@ Es como un **Excel con varias hojas (tablas)**, pero que vive en internet y no s
 Abajo en VS Code, el **enchufe** de PlatformIO (*Serial Monitor*). Muestra cosas como "WiFi conectado" u "Hora: 18:30". Sirve para buscar errores.
 
 ### Cambiar el WiFi
-Abrí `Tamagotchi-Wokwi/secretos.h`, cambiá lo que está entre comillas, guardá y subí el código a la placa. (¡No el `secretos.ejemplo.h`!)
+1. Desenchufá Chaca. **Mantené apretado BACK** y enchufala. Aparece "Configurar WiFi".
+2. En el celu, conectate a la red **Chaca** (no tiene contraseña). Se abre una página; si no, entrá a **192.168.4.1** en el navegador.
+3. Elegí la red, escribí la contraseña y tocá **Guardar**. Chaca se reinicia y se conecta.
+- Para salir sin cambiar nada: apretá **BACK**.
+- La de `secretos.h` sigue siendo la red "de fábrica" (cambiarla sí necesita subir el código). ¡No toques `secretos.ejemplo.h`!
+- En Wokwi esto no se puede probar (el celular no llega al simulador).
 
 ### Cambiar una respuesta de Info
 1. En `preguntas.json` (el servidor), cambiá la respuesta y subí a GitHub.
@@ -364,7 +372,8 @@ Compilá con el **✓** y después **F1 → "Wokwi: Start Simulator"**.
 | La pantalla tiene rayas o manchas | Bajá `TFT_VELOCIDAD` a `10000000` en `sketch.ino`. Revisá los cables SCK y MOSI |
 | No suena | ¿Son entre las 22 y las 8? Es el silencio nocturno. Si no, revisá que el buzzer esté en **G26** |
 | Chaca entra a la casa sin tocar nada | Hay algo conectado en un pin de botón (G32, G33 o G25) que no debería |
-| No se conecta al WiFi | ¿La red es de **2.4 GHz**? ¿Están bien el nombre y la clave en `secretos.h`? |
+| No se conecta al WiFi | ¿La red es de **2.4 GHz**? Volvé a cargarla prendiendo con **BACK** (quizá la contraseña estaba mal) |
+| Prendí con BACK y el celu no abre la página | Entrá a mano a **192.168.4.1**. Si el celu dice "sin internet, ¿desconectar?", decile que **no** / seguir conectado |
 | Tarda mucho en mostrar los stats | El servidor de Render se estaba despertando. Esperá un minuto |
 | El panel dice "Sin conexión" | Chaca está apagada o sin internet |
 | Se queda en la pantalla de inicio, se reinicia sola y el buzzer zumba | Le falta energía: en el monitor serie dice **"Brownout detector was triggered"**. Enchufala en un **puerto USB de atrás** de la compu o en un cargador de celular (los de adelante dan menos corriente) |

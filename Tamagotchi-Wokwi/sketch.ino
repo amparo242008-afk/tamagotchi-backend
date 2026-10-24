@@ -30,6 +30,9 @@
 #include <WiFi.h>               // conectarse a internet
 #include <HTTPClient.h>         // pedirle cosas al servidor (GET / POST)
 #include <ArduinoJson.h>        // leer las respuestas del servidor (vienen en JSON)
+#include <Preferences.h>        // guardar las redes WiFi en la memoria que no se borra al apagar
+#include <WebServer.h>          // la pagina para configurar el WiFi desde el celular
+#include <DNSServer.h>          // hace que esa pagina se abra sola en el celular
 #include <SPI.h>                // el "cable" de comunicacion con la pantalla
 #include <Adafruit_GFX.h>       // funciones de dibujo (rectangulos, texto, triangulos...)
 #include <Adafruit_ILI9341.h>   // el controlador de nuestra pantalla en particular
@@ -728,25 +731,196 @@ void enviarRegistro(int rango, const char* respuesta) {
     xQueueSend(colaAcciones, &p, 0);
 }
 
-// Elige la red: si se ve Wokwi-GUEST estamos en el simulador; si no, el WiFi de la casa.
+// ---------- Redes guardadas ----------
+// Las redes que se cargan desde el celular (ver "Configurar WiFi") quedan en la memoria
+// interna del ESP32 (Preferences), que no se borra al apagar. Se guardan hasta 5:
+// la 0 es la ultima que se cargo. Si se carga una sexta, se olvida la mas vieja.
+#define MAX_REDES 5
+Preferences memoriaWiFi;
+
+int cantidadRedes() {
+    memoriaWiFi.begin("wifi", true);  // true = solo leer
+    int n = memoriaWiFi.getInt("cant", 0);
+    memoriaWiFi.end();
+    return n;
+}
+
+void leerRed(int i, String& nombre, String& clave) {
+    memoriaWiFi.begin("wifi", true);
+    nombre = memoriaWiFi.getString(("n" + String(i)).c_str(), "");
+    clave = memoriaWiFi.getString(("c" + String(i)).c_str(), "");
+    memoriaWiFi.end();
+}
+
+// La red nueva queda primera; si ya estaba guardada, se le actualiza la clave.
+void guardarRed(const String& nombre, const String& clave) {
+    String nombres[MAX_REDES], claves[MAX_REDES];
+    int n = 0;
+    nombres[n] = nombre; claves[n] = clave; n++;
+    int viejas = cantidadRedes();
+    for (int i = 0; i < viejas && n < MAX_REDES; i++) {
+        String nom, cla;
+        leerRed(i, nom, cla);
+        if (nom != nombre) { nombres[n] = nom; claves[n] = cla; n++; }
+    }
+    memoriaWiFi.begin("wifi", false);  // false = leer y escribir
+    for (int i = 0; i < n; i++) {
+        memoriaWiFi.putString(("n" + String(i)).c_str(), nombres[i]);
+        memoriaWiFi.putString(("c" + String(i)).c_str(), claves[i]);
+    }
+    memoriaWiFi.putInt("cant", n);
+    memoriaWiFi.end();
+}
+
+// Elige la red entre las que se ven:
+//   1. Wokwi-GUEST -> estamos en el simulador
+//   2. una de las redes guardadas desde el celular (la mas nueva primero)
+//   3. si no, la de secretos.h (la "de fabrica")
 void conectarWiFi() {
     WiFi.mode(WIFI_STA);
     // Potencia del WiFi mas baja (la maxima es 19.5 dBm): alcanza para una casa y el pico de
     // corriente al conectar es mas chico. Con la maxima, un puerto USB flojo o pilas gastadas
     // hacian que la placa se reinicie ("Brownout detector was triggered").
     WiFi.setTxPower(WIFI_POWER_11dBm);
-    if (HAY_WIFI_CASA) {
-        int n = WiFi.scanNetworks();  // tarda 2 o 3 segundos
+    int n = WiFi.scanNetworks();  // tarda 2 o 3 segundos
+    for (int i = 0; i < n; i++) {
+        if (WiFi.SSID(i) == WOKWI_RED) {
+            Serial.println("WiFi: simulador");
+            WiFi.begin(WOKWI_RED, "");
+            return;
+        }
+    }
+    int guardadas = cantidadRedes();
+    for (int g = 0; g < guardadas; g++) {
+        String nombre, clave;
+        leerRed(g, nombre, clave);
         for (int i = 0; i < n; i++) {
-            if (WiFi.SSID(i) == WOKWI_RED) {
-                Serial.println("WiFi: simulador");
-                WiFi.begin(WOKWI_RED, "");
+            if (WiFi.SSID(i) == nombre) {
+                Serial.printf("WiFi: %s (guardada)\n", nombre.c_str());
+                WiFi.begin(nombre.c_str(), clave.c_str());
                 return;
             }
         }
     }
     Serial.printf("WiFi: %s\n", WIFI_NOMBRE);
     WiFi.begin(WIFI_NOMBRE, WIFI_CLAVE);
+}
+
+// ---------- Configurar WiFi desde el celular ----------
+// Se activa manteniendo BACK apretado al prender. Chaca arma su propia red WiFi ("Chaca"),
+// el celular se conecta a esa red y se abre solo una pagina (como el WiFi de un bar:
+// se llama "portal cautivo"). Ahi se elige la red y se escribe la clave. Chaca la guarda,
+// se reinicia y desde ahi se conecta solo a esa red cuando la ve. Su red propia desaparece.
+// El "DNS trampa" contesta a cualquier direccion con la IP de Chaca: por eso el celular
+// cree que hay que "iniciar sesion" y abre la pagina sin que nadie escriba nada.
+#define RED_CONFIG "Chaca"
+WebServer servidorConfig(80);
+DNSServer dnsConfig;
+String opcionesRedes;  // los <option> con las redes que se veian al entrar
+
+// Escribe una linea centrada en la pantalla (con tildes)
+void lineaCentrada(const String& texto, int y, int tam, uint16_t color) {
+    String t = aCp437(texto);
+    tft.setTextSize(tam);
+    tft.setTextColor(color);
+    tft.setCursor((240 - (int)t.length() * 6 * tam) / 2, y);
+    tft.print(t);
+}
+
+// Para que un nombre de red con < o " no rompa la pagina
+String sinHtml(const String& s) {
+    String r = s;
+    r.replace("&", "&amp;"); r.replace("<", "&lt;"); r.replace("\"", "&quot;");
+    return r;
+}
+
+const char PAGINA_ARRIBA[] PROGMEM = R"(<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Chaca</title>
+<style>body{font-family:sans-serif;background:#fdf3e1;color:#4a3426;margin:0;padding:24px}
+h1{font-size:24px;margin:0 0 8px}p{margin:0 0 20px}label{display:block;font-weight:bold;margin:16px 0 6px}
+select,input,button{width:100%;box-sizing:border-box;font-size:18px;padding:12px;border-radius:10px;border:2px solid #eb9866}
+button{background:#eb9866;color:#fff;font-weight:bold;margin-top:24px}</style></head><body>)";
+
+void paginaInicio() {
+    String html = FPSTR(PAGINA_ARRIBA);
+    html += "<h1>Conectar a Chaca</h1><p>Elegí tu red WiFi y escribí la contraseña.</p>"
+            "<form method='post' action='/guardar'><label>Red</label><select name='red'>";
+    html += opcionesRedes;
+    html += "</select><label>Contraseña</label><input name='clave' type='password'>"
+            "<button>Guardar</button></form></body></html>";
+    servidorConfig.send(200, "text/html", html);
+}
+
+void paginaGuardar() {
+    String nombre = servidorConfig.arg("red");
+    if (nombre == "") { paginaInicio(); return; }
+    guardarRed(nombre, servidorConfig.arg("clave"));
+    String html = FPSTR(PAGINA_ARRIBA);
+    html += "<h1>¡Listo!</h1><p>Chaca guardó la red <b>" + sinHtml(nombre) +
+            "</b> y se va a reiniciar. Ya podés volver a tu WiFi.</p></body></html>";
+    servidorConfig.send(200, "text/html", html);
+    Serial.printf("Red guardada: %s\n", nombre.c_str());
+
+    tft.fillScreen(ILI9341_BLACK);
+    lineaCentrada("¡Listo!", 120, 3, ILI9341_WHITE);
+    lineaCentrada("Red guardada:", 170, 2, ILI9341_WHITE);
+    lineaCentrada(nombre, 195, nombre.length() > 18 ? 1 : 2, ILI9341_YELLOW);
+    delay(3000);  // que el celular alcance a recibir la pagina
+    ESP.restart();
+}
+
+// Cualquier otra direccion (la que prueba el celular para ver si hay internet) -> a la pagina
+void paginaRedirigir() {
+    servidorConfig.sendHeader("Location", "http://192.168.4.1/");
+    servidorConfig.send(302, "text/plain", "");
+}
+
+// No vuelve nunca: termina reiniciando la placa (al guardar, o si aprietan BACK para salir)
+void modoConfigurarWiFi() {
+    tft.fillScreen(ILI9341_BLACK);
+    lineaCentrada("Configurar WiFi", 20, 2, ILI9341_YELLOW);
+    lineaCentrada("Buscando redes...", 150, 2, ILI9341_WHITE);
+
+    // Primero mira que redes hay, para mostrarlas en la pagina
+    WiFi.mode(WIFI_STA);
+    WiFi.setTxPower(WIFI_POWER_11dBm);
+    int n = WiFi.scanNetworks();
+    opcionesRedes = "";
+    for (int i = 0; i < n; i++) {
+        String nombre = WiFi.SSID(i);
+        if (nombre == "" || opcionesRedes.indexOf(">" + sinHtml(nombre) + "<") >= 0) continue;  // ocultas y repetidas
+        opcionesRedes += "<option value=\"" + sinHtml(nombre) + "\">" + sinHtml(nombre) + "</option>";
+    }
+
+    // Despues arma su propia red (sin contraseña) y la pagina
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(RED_CONFIG);
+    WiFi.setTxPower(WIFI_POWER_11dBm);
+    dnsConfig.start(53, "*", WiFi.softAPIP());
+    servidorConfig.on("/", HTTP_GET, paginaInicio);
+    servidorConfig.on("/guardar", HTTP_POST, paginaGuardar);
+    servidorConfig.onNotFound(paginaRedirigir);
+    servidorConfig.begin();
+    Serial.println("Configurar WiFi: red \"" RED_CONFIG "\", pagina en 192.168.4.1");
+
+    tft.fillScreen(ILI9341_BLACK);
+    lineaCentrada("Configurar WiFi", 20, 2, ILI9341_YELLOW);
+    lineaCentrada("1. En tu celu, conectate", 70, 1, ILI9341_WHITE);
+    lineaCentrada("a la red WiFi:", 85, 1, ILI9341_WHITE);
+    lineaCentrada(RED_CONFIG, 105, 3, ILI9341_YELLOW);
+    lineaCentrada("2. Se abre una página sola.", 150, 1, ILI9341_WHITE);
+    lineaCentrada("Si no, entrá a 192.168.4.1", 165, 1, ILI9341_WHITE);
+    lineaCentrada("3. Elegí tu red, escribí", 195, 1, ILI9341_WHITE);
+    lineaCentrada("la contraseña y Guardar.", 210, 1, ILI9341_WHITE);
+    lineaCentrada("BACK = salir sin cambiar", 295, 1, ILI9341_LIGHTGREY);
+
+    backAnterior = digitalRead(PIN_BACK) == LOW;  // soltar BACK (el de la entrada) no cuenta
+    for (;;) {
+        dnsConfig.processNextRequest();
+        servidorConfig.handleClient();
+        if (sePresiono(PIN_BACK, backAnterior)) ESP.restart();
+        delay(5);
+    }
 }
 
 // Tarea de red: corre sola en el nucleo 0, mientras el loop (nucleo 1) dibuja y lee botones.
@@ -2210,6 +2384,9 @@ void setup() {
     tft.setTextColor(ILI9341_WHITE);
     tft.setCursor(10, 10);
     tft.println("Iniciando Chaca...");
+
+    // BACK apretado al prender = configurar el WiFi desde el celular (termina reiniciando)
+    if (!modoDemo && digitalRead(PIN_BACK) == LOW) modoConfigurarWiFi();
 
     irA(P_BIENVENIDA);  // Chaca saluda afuera y espera que aprieten un boton para entrar
 
