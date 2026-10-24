@@ -211,9 +211,11 @@ int comidaElegida = 0;  // copia de cursorComida al entrar a la cocina
 // Para sumar una comida nueva alcanza con agregar una fila aca.
 struct Comida { const char* nombre; const char* const* sprite; const char* letras; const uint16_t* colores; int n; };
 const Comida comidas[] = {
-    {"Leche", SPR_LECHE, PALETA_LECHE, PALETA_LECHE_COLORES, PALETA_LECHE_N},
-    {"Torta", SPR_TORTA, PALETA_TORTA, PALETA_TORTA_COLORES, PALETA_TORTA_N},
+    {"Pancho", SPR_PANCHO, PALETA_PANCHO, PALETA_PANCHO_COLORES, PALETA_PANCHO_N},
+    {"Galletita", SPR_GALLETITA, PALETA_GALLETITA, PALETA_GALLETITA_COLORES, PALETA_GALLETITA_N},
     {"Gaseosa", SPR_GASEOSA, PALETA_GASEOSA, PALETA_GASEOSA_COLORES, PALETA_GASEOSA_N},
+    {"Café", SPR_CAFE, PALETA_CAFE, PALETA_CAFE_COLORES, PALETA_CAFE_N},
+    {"Torta", SPR_TORTA, PALETA_TORTA, PALETA_TORTA_COLORES, PALETA_TORTA_N},
     {"Hamburguesa", SPR_HAMBURGUESA, PALETA_HAMBURGUESA, PALETA_HAMBURGUESA_COLORES, PALETA_HAMBURGUESA_N},
 };
 const int N_COMIDAS = sizeof(comidas) / sizeof(comidas[0]);  // cuantas filas tiene la tabla
@@ -1188,8 +1190,9 @@ void dibujarCartaComida() {
 
     // plaquita con el nombre: se agranda si el nombre es largo (hasta el ancho del recuadro).
     // Letra grande = 12 px por letra; si ni asi entra (ej. "Hamburguesa"), letra chica (6 px).
-    int tam = (int)strlen(c.nombre) * 12 <= CARTA_W - 8 ? 2 : 1;
-    int anchoTexto = (int)strlen(c.nombre) * 6 * tam;
+    String nombre = aCp437(c.nombre);  // para la tilde de "Café"
+    int tam = (int)nombre.length() * 12 <= CARTA_W - 8 ? 2 : 1;
+    int anchoTexto = (int)nombre.length() * 6 * tam;
     int placaW = max(PLACA_W, min(anchoTexto + 12, CARTA_W));
     int px = (CARTA_W - placaW) / 2;
     int py = PLACA_Y - CARTA_Y;
@@ -1198,7 +1201,8 @@ void dibujarCartaComida() {
     lienzo->setTextSize(tam);
     lienzo->setTextColor(naranja);
     lienzo->setCursor((CARTA_W - anchoTexto) / 2 + 1, tam == 2 ? py + 4 : py + 7);
-    lienzo->print(c.nombre);
+    lienzo->cp437(true);
+    lienzo->print(nombre);
 
     terminarZona(lienzo, CARTA_X, CARTA_Y);
 }
@@ -2358,7 +2362,7 @@ const Demo GUION_DEMO[] = {
     {D_SEL, 0, 3500},                         // bienvenida: saluda y entra corriendo
     {D_AVISO_COMIDA, 0, 4000},                // "¿Ya almorzaste?"
     {D_SEL, 0, 3000},                         // "Si" -> eligen la comida juntos
-    {D_COMIDA_A, 3, 1500},                    // hasta la hamburguesa
+    {D_COMIDA_A, 5, 1500},                    // hasta la hamburguesa
     {D_SEL, 0, 1200},                         // come en la cocina y vuelve festejando
     {D_SEL, 0, 6000},                         // menu
     {D_MENU_A, MENU_BANO, 1500},
